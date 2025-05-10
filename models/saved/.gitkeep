@@ -1,0 +1,3 @@
+# This file exists so that the models/saved directory is kept in Git.
+# Model files (.h5) will be ignored by .gitignore but the directory structure is preserved.
+# This directory will store trained deep learning models for the steganography process.

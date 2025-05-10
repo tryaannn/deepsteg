@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Encode - DeepSteg</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
+                <i class="fas fa-shield-alt me-2"></i>
+                <span>DeepSteg</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('index') }}">Beranda</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('encode_page') }}">Encoding</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('decode_page') }}">Decoding</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('about_page') }}">Tentang</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <section class="page-header">
+        <div class="container">
+            <h1>Sembunyikan Pesan</h1>
+            <p>Upload gambar dan masukkan pesan rahasia yang ingin disembunyikan.</p>
+        </div>
+    </section>
+
+    <section class="encode-section py-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h3 class="card-title">Input</h3>
+                        </div>
+                        <div class="card-body">
+                            <form id="encodeForm">
+                                <div class="mb-3">
+                                    <label for="imageUpload" class="form-label">Upload Gambar Cover</label>
+                                    <div class="image-upload-wrapper">
+                                        <div class="image-preview" id="imagePreview">
+                                            <div class="placeholder">
+                                                <i class="fas fa-image"></i>
+                                                <p>Preview Gambar</p>
+                                            </div>
+                                            <img class="preview-img" src="" alt="Preview" style="display: none;">
+                                        </div>
+                                        <input type="file" class="form-control" id="imageUpload" accept="image/png, image/jpeg, image/jpg, image/bmp" required>
+                                    </div>
+                                    <small class="text-muted">Format yang didukung: JPG, PNG, BMP (Maks. 16MB)</small>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="message" class="form-label">Pesan Rahasia</label>
+                                    <textarea class="form-control" id="message" rows="5" placeholder="Masukkan pesan yang ingin disembunyikan..." required></textarea>
+                                    <div class="d-flex justify-content-between mt-1">
+                                        <small id="capacityInfo" class="text-muted" style="display: none;">Kapasitas maksimum: ~0 karakter</small>
+                                        <small id="charCount" class="text-muted" data-capacity="0">0 karakter</small>
+                                    </div>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary w-100" id="encodeBtn">
+                                    <i class="fas fa-lock me-2"></i>Sembunyikan Pesan
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h3 class="card-title">Hasil</h3>
+                        </div>
+                        <div class="card-body">
+                            <div id="resultContainer" style="display: none;">
+                                <div class="result-image-wrapper mb-3">
+                                    <img id="resultImage" src="" alt="Stego Image" class="img-fluid">
+                                </div>
+                                
+                                <div class="metrics-container mb-4">
+                                    <h4>Metrik Kualitas</h4>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-2">
+                                            <div class="metric-item">
+                                                <div class="metric-label">PSNR (Peak Signal-to-Noise Ratio)</div>
+                                                <div class="metric-value" id="psnrValue">-</div>
+                                                <div class="progress">
+                                                    <div class="progress-bar" id="psnrBar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <div class="metric-item">
+                                                <div class="metric-label">SSIM (Structural Similarity)</div>
+                                                <div class="metric-value" id="ssimValue">-</div>
+                                                <div class="progress">
+                                                    <div class="progress-bar" id="ssimBar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <div class="metric-item">
+                                                <div class="metric-label">MSE (Mean Squared Error)</div>
+                                                <div class="metric-value" id="mseValue">-</div>
+                                                <div class="progress">
+                                                    <div class="progress-bar" id="mseBar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <div class="metric-item">
+                                                <div class="metric-label">Histogram Similarity</div>
+                                                <div class="metric-value" id="histValue">-</div>
+                                                <div class="progress">
+                                                    <div class="progress-bar" id="histBar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <div class="metric-item">
+                                                <div class="metric-label">Kapasitas Terpakai</div>
+                                                <div class="metric-value" id="capacityValue">-</div>
+                                                <div class="progress">
+                                                    <div class="progress-bar" id="capacityBar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <div class="metric-item">
+                                                <div class="metric-label">Ukuran File</div>
+                                                <div class="metric-value" id="fileSize">-</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="d-grid gap-2">
+                                    <a id="downloadBtn" href="#" download="stego_image.png" class="btn btn-success">
+                                        <i class="fas fa-download me-2"></i>Download Gambar Stego
+                                    </a>
+                                    <small id="downloadHelp" class="text-muted text-center" style="display: none;">
+                                        <i class="fas fa-info-circle me-1"></i> Jika tombol download tidak berfungsi, klik kanan pada gambar dan pilih "Simpan Gambar Sebagai..."
+                                    </small>
+                                </div>
+                            </div>
+                            
+                            <div id="loadingContainer" style="display: none;">
+                                <div class="text-center py-5">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <p class="mt-3">Memproses steganografi menggunakan deep learning...</p>
+                                    <small class="text-muted">Mohon tunggu, proses ini mungkin memakan waktu beberapa saat tergantung ukuran gambar.</small>
+                                </div>
+                            </div>
+                            
+                            <div id="placeholderContainer" class="text-center py-5">
+                                <div class="placeholder-icon mb-3">
+                                    <i class="fas fa-lock"></i>
+                                </div>
+                                <h4>Hasil Encoding</h4>
+                                <p>Masukkan gambar dan pesan, lalu klik tombol "Sembunyikan Pesan" untuk memulai proses.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="py-4">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <p>&copy; 2025 DeepSteg. All rights reserved.</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <a href="#" class="social-icon"><i class="fab fa-github"></i></a>
+                    <a href="#" class="social-icon"><i class="fab fa-linkedin"></i></a>
+                    <a href="#" class="social-icon"><i class="fab fa-twitter"></i></a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

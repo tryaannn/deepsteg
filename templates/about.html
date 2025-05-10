@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tentang - DeepSteg</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
+                <i class="fas fa-shield-alt me-2"></i>
+                <span>DeepSteg</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('index') }}">Beranda</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('encode_page') }}">Encoding</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('decode_page') }}">Decoding</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('about_page') }}">Tentang</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <section class="page-header">
+        <div class="container">
+            <h1>Tentang DeepSteg</h1>
+            <p>Informasi mengenai proyek Deep Learning Steganography Optimizer</p>
+        </div>
+    </section>
+
+    <section class="about-section py-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Apa itu DeepSteg?</h3>
+                        </div>
+                        <div class="card-body">
+                            <h4>Deep Learning Steganography Optimizer</h4>
+                            <p class="lead mb-4">
+                                DeepSteg adalah aplikasi steganografi berbasis Deep Learning yang menggunakan pendekatan Generative 
+                                Adversarial Networks (GAN) untuk mengoptimalkan kapasitas dan imperceptibility pada proses 
+                                penyembunyian pesan dalam citra digital.
+                            </p>
+                            
+                            <h5 class="mt-4 mb-3">Apa itu Steganografi?</h5>
+                            <p>
+                                Steganografi adalah seni dan ilmu menyembunyikan pesan rahasia di dalam media lain sehingga 
+                                keberadaan pesan tersebut tidak terdeteksi. Berbeda dengan kriptografi yang bertujuan untuk 
+                                mengamankan isi pesan, steganografi berfokus pada menyembunyikan keberadaan pesan itu sendiri.
+                            </p>
+                            
+                            <h5 class="mt-4 mb-3">Pendekatan Deep Learning</h5>
+                            <p>
+                                DeepSteg menggunakan pendekatan deep learning melalui arsitektur Generative Adversarial Networks (GAN) 
+                                yang terdiri dari dua jaringan neural yang saling berkompetisi: Generator (Encoder) yang bertugas 
+                                menyembunyikan pesan dalam gambar, dan Discriminator yang bertugas mendeteksi apakah gambar telah 
+                                dimodifikasi. Melalui proses training yang terus menerus, model GAN belajar untuk menghasilkan gambar 
+                                stego dengan kualitas visual yang sangat baik dan sulit terdeteksi.
+                            </p>
+                            
+                            <h5 class="mt-4 mb-3">Keunggulan DeepSteg</h5>
+                            <ul>
+                                <li><strong>Imperceptibility Tinggi</strong> - Perubahan pada gambar hampir tidak terdeteksi oleh mata manusia</li>
+                                <li><strong>Kapasitas Besar</strong> - Kemampuan menyimpan pesan yang lebih panjang dibandingkan metode tradisional</li>
+                                <li><strong>Ketahanan</strong> - Lebih tahan terhadap teknik steganalysis konvensional</li>
+                                <li><strong>Adaptivitas</strong> - Model dapat beradaptasi dengan berbagai jenis gambar input</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h3 class="card-title">Teknologi</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-4">
+                                <div class="col-md-4 tech-card">
+                                    <div class="tech-icon">
+                                        <i class="fab fa-python"></i>
+                                    </div>
+                                    <h5>Python</h5>
+                                    <p>Bahasa pemrograman utama untuk backend dan implementasi model deep learning</p>
+                                </div>
+                                
+                                <div class="col-md-4 tech-card">
+                                    <div class="tech-icon">
+                                        <i class="fas fa-brain"></i>
+                                    </div>
+                                    <h5>TensorFlow</h5>
+                                    <p>Framework deep learning untuk implementasi dan pelatihan model GAN</p>
+                                </div>
+                                
+                                <div class="col-md-4 tech-card">
+                                    <div class="tech-icon">
+                                        <i class="fas fa-flask"></i>
+                                    </div>
+                                    <h5>Flask</h5>
+                                    <p>Framework web Python untuk pengembangan aplikasi web</p>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-4 tech-card">
+                                    <div class="tech-icon">
+                                        <i class="fab fa-html5"></i>
+                                    </div>
+                                    <h5>HTML/CSS/JS</h5>
+                                    <p>Teknologi frontend untuk antarmuka pengguna yang responsif</p>
+                                </div>
+                                
+                                <div class="col-md-4 tech-card">
+                                    <div class="tech-icon">
+                                        <i class="fab fa-bootstrap"></i>
+                                    </div>
+                                    <h5>Bootstrap</h5>
+                                    <p>Framework CSS untuk desain responsif dan modern</p>
+                                </div>
+                                
+                                <div class="col-md-4 tech-card">
+                                    <div class="tech-icon">
+                                        <i class="fas fa-images"></i>
+                                    </div>
+                                    <h5>OpenCV</h5>
+                                    <p>Library pengolahan citra untuk manipulasi gambar input dan output</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h3 class="card-title">Metrik Kualitas</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="metric-explanation">
+                                <h5>PSNR (Peak Signal-to-Noise Ratio)</h5>
+                                <p>
+                                    Mengukur rasio antara kekuatan maksimal sinyal dan kekuatan noise yang mempengaruhi kualitas
+                                    representasi gambar. Nilai PSNR yang tinggi menunjukkan kualitas stego yang baik.
+                                </p>
+                            </div>
+                            
+                            <div class="metric-explanation">
+                                <h5>SSIM (Structural Similarity Index)</h5>
+                                <p>
+                                    Mengukur kesamaan struktural antara dua gambar. SSIM mendekati 1.0 menunjukkan gambar stego
+                                    sangat mirip dengan gambar cover asli.
+                                </p>
+                            </div>
+                            
+                            <div class="metric-explanation">
+                                <h5>MSE (Mean Squared Error)</h5>
+                                <p>
+                                    Mengukur rata-rata kuadrat error antara gambar cover dan stego. Nilai MSE yang rendah
+                                    menunjukkan perubahan minimal pada gambar.
+                                </p>
+                            </div>
+                            
+                            <div class="metric-explanation">
+                                <h5>Histogram Similarity</h5>
+                                <p>
+                                    Mengukur korelasi histogram antara gambar cover dan stego. Nilai tinggi menunjukkan
+                                    distribusi warna yang tetap terjaga setelah steganografi.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card info-card">
+                        <div class="card-body">
+                            <h5><i class="fas fa-book me-2"></i>Referensi</h5>
+                            <p>Proyek ini terinspirasi oleh penelitian-penelitian berikut:</p>
+                            <ul class="reference-list">
+                                <li>Hayes, J., & Danezis, G. (2017). Generating steganographic images via adversarial training. NIPS.</li>
+                                <li>Zhu, J., et al. (2018). Hidden: Hiding data with deep networks. ECCV.</li>
+                                <li>Baluja, S. (2017). Hiding images in plain sight: Deep steganography. NIPS.</li>
+                                <li>Yang, J., et al. (2019). SteganoGAN: High capacity image steganography with GANs. arXiv.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="py-4">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <p>&copy; 2025 DeepSteg. All rights reserved.</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <a href="#" class="social-icon"><i class="fab fa-github"></i></a>
+                    <a href="#" class="social-icon"><i class="fab fa-linkedin"></i></a>
+                    <a href="#" class="social-icon"><i class="fab fa-twitter"></i></a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

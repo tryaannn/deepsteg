@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepSteg: Deep Learning Steganography</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
+                <i class="fas fa-shield-alt me-2"></i>
+                <span>DeepSteg</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('index') }}">Beranda</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('encode_page') }}">Encoding</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('decode_page') }}">Decoding</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('about_page') }}">Tentang</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <div class="container h-100">
+            <div class="row h-100 align-items-center">
+                <div class="col-lg-6">
+                    <div class="hero-content">
+                        <h1>DeepSteg</h1>
+                        <h2>Deep Learning Steganography Optimizer</h2>
+                        <p class="lead">
+                            Optimasi kapasitas dan imperceptibility pada steganografi citra menggunakan 
+                            pendekatan deep learning dengan Generative Adversarial Networks.
+                        </p>
+                        <div class="hero-buttons">
+                            <a href="{{ url_for('encode_page') }}" class="btn btn-primary btn-lg">Sembunyikan Pesan</a>
+                            <a href="{{ url_for('decode_page') }}" class="btn btn-outline-light btn-lg">Ekstrak Pesan</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="hero-image">
+                        <img src="{{ url_for('static', filename='img/steganography-concept.svg') }}" alt="Steganography Concept" class="img-fluid">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <section class="features py-5">
+        <div class="container">
+            <h2 class="text-center mb-5">Fitur Utama</h2>
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-brain"></i>
+                        </div>
+                        <h3>Deep Learning</h3>
+                        <p>Menggunakan arsitektur Generative Adversarial Networks (GAN) untuk mengoptimalkan proses penyembunyian pesan.</p>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-eye-slash"></i>
+                        </div>
+                        <h3>Imperceptibility</h3>
+                        <p>Hasil steganografi tidak terlihat oleh mata manusia, dengan metrik PSNR dan SSIM yang tinggi.</p>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-database"></i>
+                        </div>
+                        <h3>Kapasitas Tinggi</h3>
+                        <p>Memaksimalkan jumlah data yang dapat disembunyikan dalam gambar tanpa mengurangi kualitas visual.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="how-it-works py-5 bg-light">
+        <div class="container">
+            <h2 class="text-center mb-5">Bagaimana Cara Kerjanya?</h2>
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <div class="step-card">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h3>Encoding</h3>
+                            <p>Upload gambar cover dan masukkan pesan rahasia. Model deep learning akan menyembunyikan pesan dalam gambar dengan cara yang optimal.</p>
+                            <a href="{{ url_for('encode_page') }}" class="btn btn-sm btn-primary">Mulai Encode</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-4">
+                    <div class="step-card">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h3>Decoding</h3>
+                            <p>Upload gambar stego yang telah memiliki pesan tersembunyi. Sistem akan mengekstrak pesan yang tersembunyi di dalamnya.</p>
+                            <a href="{{ url_for('decode_page') }}" class="btn btn-sm btn-primary">Mulai Decode</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="py-4">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <p>&copy; 2025 DeepSteg. All rights reserved.</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <a href="#" class="social-icon"><i class="fab fa-github"></i></a>
+                    <a href="#" class="social-icon"><i class="fab fa-linkedin"></i></a>
+                    <a href="#" class="social-icon"><i class="fab fa-twitter"></i></a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
