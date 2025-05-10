@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, send_from_directory, redirect, url_for, flash, session
 import os
 import numpy as np
 import cv2
@@ -9,18 +9,21 @@ import logging
 import uuid
 import time
 import shutil
+import json
 from werkzeug.utils import secure_filename
 from models.utils import preprocess_image, postprocess_image, calculate_metrics
-from models.encoder import encode_message
-from models.decoder import decode_message
+from models.enhanced_encoder import encode_message
+from models.enhanced_decoder import decode_message
+from models.crypto import calculate_password_strength
 
 # Konfigurasi aplikasi Flask
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'deepsteg_default_secret_key')
+app.secret_key = os.environ.get('SECRET_KEY', 'deepsteg_enhanced_secret_key')
 app.config['UPLOAD_FOLDER'] = os.path.join(os.getcwd(), 'static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'bmp'}
 app.config['MAX_IMAGE_SIZE'] = 1920  # Maksimum dimensi gambar
+app.config['SESSION_TYPE'] = 'filesystem'
 
 # Konfigurasi logging
 log_dir = os.path.join(os.getcwd(), 'logs')
@@ -81,6 +84,20 @@ def decode_page():
 def about_page():
     return render_template('about.html')
 
+@app.route('/api/check-password', methods=['POST'])
+def check_password():
+    """API endpoint untuk memeriksa kekuatan password"""
+    data = request.get_json()
+    if not data or 'password' not in data:
+        return jsonify({'error': 'Password tidak ditemukan dalam request'}), 400
+    
+    password = data['password']
+    
+    # Evaluasi kekuatan password
+    result = calculate_password_strength(password)
+    
+    return jsonify(result)
+
 @app.route('/api/encode', methods=['POST'])
 def encode():
     """API endpoint untuk encoding pesan ke dalam gambar"""
@@ -104,6 +121,25 @@ def encode():
     message = request.form.get('message', '').strip()
     if not message:
         return jsonify({'error': 'Tidak ada pesan yang diberikan'}), 400
+    
+    # Dapatkan password (opsional)
+    use_encryption = request.form.get('use_encryption', 'false') == 'true'
+    password = None
+    if use_encryption:
+        password = request.form.get('password', '')
+        if not password:
+            return jsonify({'error': 'Password diperlukan jika enkripsi diaktifkan'}), 400
+    
+    # Dapatkan level kompresi (opsional)
+    compression_level = 6  # Default level
+    use_compression = request.form.get('use_compression', 'false') == 'true'
+    if use_compression:
+        try:
+            compression_level = int(request.form.get('compression_level', '6'))
+            if not 0 <= compression_level <= 9:
+                compression_level = 6  # Reset ke default jika di luar rentang
+        except ValueError:
+            pass  # Gunakan default jika input tidak valid
     
     # Generate unique filename untuk mencegah overwrite
     original_filename = secure_filename(image_file.filename)
@@ -146,8 +182,11 @@ def encode():
         if capacity_percentage > 90:
             logger.warning(f"Message exceeds 90% of image capacity: {capacity_percentage:.2f}%")
         
-        # Encode pesan ke dalam gambar
-        stego_img, metrics = encode_message(processed_img, message)
+        # Encode pesan ke dalam gambar dengan enkripsi jika diaktifkan
+        if use_compression:
+            stego_img, metrics = encode_message(processed_img, message, password if use_encryption else None, compression_level)
+        else:
+            stego_img, metrics = encode_message(processed_img, message, password if use_encryption else None, None)
         
         # Postprocessing gambar
         output_img = postprocess_image(stego_img)
@@ -180,10 +219,22 @@ def encode():
         # Tambahkan metrik tambahan
         metrics['capacity_used'] = float(capacity_percentage)
         metrics['file_size'] = file_size
+        metrics['encrypted'] = use_encryption
+        metrics['compressed'] = use_compression
+        
+        # Simpan gambar asli untuk perbandingan
+        original_path = os.path.join(app.config['UPLOAD_FOLDER'], f"original_{result_filename}")
+        cv2.imwrite(original_path, cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR))
+        
+        # Baca gambar asli untuk ditampilkan
+        with open(original_path, 'rb') as f:
+            original_data = f.read()
+            original_str = base64.b64encode(original_data).decode('utf-8')
         
         return jsonify({
             'status': 'success',
             'image': img_str,
+            'original_image': original_str,
             'metrics': metrics,
             'filename': result_filename
         })
@@ -210,6 +261,9 @@ def decode():
             'error': 'Format file tidak valid. Format yang didukung: PNG, JPG, BMP'
         }), 400
     
+    # Dapatkan password (opsional)
+    password = request.form.get('password', '')
+    
     try:
         # Baca dan preprocessing gambar
         img = Image.open(image_file)
@@ -234,7 +288,27 @@ def decode():
         processed_img = preprocess_image(img_array)
         
         # Decode pesan dari gambar
-        message = decode_message(processed_img)
+        message, metadata = decode_message(processed_img, password if password else None)
+        
+        # Handle kasus khusus untuk pesan terenkripsi
+        if message == "ENCRYPTED_MESSAGE":
+            if metadata['password_correct'] is False:
+                return jsonify({
+                    'status': 'error',
+                    'error': 'Password salah untuk pesan terenkripsi'
+                }), 400
+            else:
+                return jsonify({
+                    'status': 'password_required',
+                    'message': 'Pesan ini terenkripsi. Masukkan password untuk mendekripsi.'
+                })
+        
+        # Handle kasus khusus untuk error kompresi
+        if message == "COMPRESSION_ERROR":
+            return jsonify({
+                'status': 'error',
+                'error': 'Gagal mendekompresi pesan. File mungkin rusak.'
+            }), 400
         
         if not message:
             return jsonify({
@@ -244,7 +318,8 @@ def decode():
         
         return jsonify({
             'status': 'success',
-            'message': message
+            'message': message,
+            'metadata': metadata
         })
     
     except Exception as e:
@@ -285,6 +360,36 @@ def download_file(filename):
         logger.error(f"Error saat download file: {str(e)}")
         return "Terjadi kesalahan saat download file", 500
 
+@app.route('/api/stats', methods=['GET'])
+def get_stats():
+    """API endpoint untuk mendapatkan statistik aplikasi"""
+    try:
+        # Hitung jumlah file yang telah diproses
+        upload_files = [f for f in os.listdir(uploads_dir) if os.path.isfile(os.path.join(uploads_dir, f)) and f != '.gitkeep']
+        
+        # Hitung jumlah stego image
+        stego_files = [f for f in upload_files if f.startswith('stego_')]
+        
+        # Hitung jumlah original image
+        original_files = [f for f in upload_files if f.startswith('original_')]
+        
+        # Dapatkan ukuran total uploads
+        total_size = sum(os.path.getsize(os.path.join(uploads_dir, f)) for f in upload_files)
+        
+        # Buat statistik
+        stats = {
+            'total_files': len(upload_files),
+            'stego_images': len(stego_files),
+            'original_images': len(original_files),
+            'total_size_mb': round(total_size / (1024 * 1024), 2),
+            'uptime': time.time() - app.startup_time if hasattr(app, 'startup_time') else 0
+        }
+        
+        return jsonify(stats)
+    except Exception as e:
+        logger.error(f"Error getting stats: {str(e)}")
+        return jsonify({'error': 'Gagal mendapatkan statistik'}), 500
+
 @app.errorhandler(413)
 def request_entity_too_large(error):
     return jsonify({'error': 'File terlalu besar. Ukuran maksimum adalah 16MB'}), 413
@@ -306,5 +411,8 @@ if __name__ == '__main__':
     # Bersihkan file lama saat startup
     cleanup_old_files()
     
-    logger.info("======== DeepSteg Application Started ========")
+    # Catat waktu startup
+    app.startup_time = time.time()
+    
+    logger.info("======== DeepSteg Enhanced Application Started ========")
     app.run(debug=True, host='0.0.0.0', port=5000)

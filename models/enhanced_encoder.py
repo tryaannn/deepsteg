@@ -1,10 +1,16 @@
-# encoder.py
+"""
+enhanced_encoder.py
+Modul untuk encoding pesan dengan enkripsi dan tambahan fitur keamanan
+"""
+
 import numpy as np
 import os
 import cv2
 import logging
 import time
+import zlib
 from models.utils import text_to_bits, calculate_metrics, load_model_if_exists
+from models.crypto import MessageEncryptor
 
 # Konfigurasi logging
 logger = logging.getLogger(__name__)
@@ -26,9 +32,9 @@ def init_model():
         try:
             encoder_model = load_model_if_exists('models/saved/encoder.h5')
             
-            # Jika tidak ada, gunakan steganografi LSB sederhana
+            # Jika tidak ada, gunakan steganografi LSB secure
             if encoder_model is None:
-                logger.info("Model encoder tidak ditemukan, menggunakan LSB fallback")
+                logger.info("Model encoder tidak ditemukan, menggunakan LSB secure fallback")
                 
                 # Buat direktori untuk menyimpan model jika belum ada
                 os.makedirs('models/saved', exist_ok=True)
@@ -42,13 +48,16 @@ def init_model():
     
     return encoder_model is not None
 
-def encode_message(image, message):
+def encode_message(image, message, password=None, compression_level=6):
     """
     Menyembunyikan pesan dalam gambar menggunakan model Deep Learning atau LSB fallback
+    dengan tambahan enkripsi dan kompresi
     
     Args:
         image (numpy.ndarray): Gambar input dalam format RGB
         message (str): Pesan teks yang akan disembunyikan
+        password (str, optional): Password untuk enkripsi. Default None (tanpa enkripsi)
+        compression_level (int, optional): Level kompresi 0-9. Default 6
         
     Returns:
         tuple: (stego_image, metrics) - Gambar stego dan metrik kualitasnya
@@ -66,6 +75,37 @@ def encode_message(image, message):
     if not isinstance(message, str) or not message:
         raise ValueError("Pesan harus berupa string dan tidak boleh kosong")
     
+    # Simpan gambar asli untuk perbandingan
+    original_img = image.copy()
+    
+    # Log info gambar
+    logger.info(f"Encoding message of length {len(message)} into image of shape {image.shape}")
+    
+    # Kompresi pesan terlebih dahulu jika pesan cukup panjang
+    original_size = len(message.encode('utf-8'))
+    if original_size > 100:  # Hanya kompresi jika lebih dari 100 bytes
+        compressed_message = zlib.compress(message.encode('utf-8'), level=compression_level)
+        compressed_size = len(compressed_message)
+        compression_ratio = compressed_size / original_size
+        
+        # Gunakan hasil kompresi jika efektif (lebih kecil dari asli)
+        if compression_ratio < 0.9:  # Minimal 10% pengurangan
+            logger.info(f"Message compressed: {original_size} -> {compressed_size} bytes ({compression_ratio:.2f})")
+            message = "COMPRESSED:" + compressed_message.hex()
+        else:
+            logger.info(f"Compression not effective ({compression_ratio:.2f}), using original message")
+    
+    # Enkripsi pesan jika password diberikan
+    if password:
+        try:
+            encryptor = MessageEncryptor()
+            encrypted_message = encryptor.encrypt(message, password)
+            message = "ENCRYPTED:" + encrypted_message
+            logger.info(f"Message encrypted using password")
+        except Exception as e:
+            logger.error(f"Error encrypting message: {str(e)}", exc_info=True)
+            raise ValueError(f"Gagal mengenkripsi pesan: {str(e)}")
+    
     # Cek kapasitas gambar (estimasi kasar: 1 bit per channel)
     img_capacity_bits = image.shape[0] * image.shape[1] * 3  # 3 channels (RGB)
     message_size_bits = len(message) * 8  # 8 bits per karakter
@@ -76,12 +116,8 @@ def encode_message(image, message):
     # Periksa kapasitas dengan margin keamanan
     if message_size_bits > (img_capacity_bits * 0.9):  # 90% kapasitas maksimum
         logger.warning(f"Message may be too large for this image: {message_size_bits} bits > {img_capacity_bits*0.9} bits")
-    
-    # Simpan gambar asli untuk perbandingan
-    original_img = image.copy()
-    
-    # Log info gambar
-    logger.info(f"Encoding message of length {len(message)} into image of shape {image.shape}")
+        if message_size_bits > img_capacity_bits:
+            raise ValueError(f"Pesan terlalu besar untuk gambar ini. Coba gunakan gambar yang lebih besar.")
     
     # Initialize model if needed
     model_available = init_model()
@@ -114,12 +150,12 @@ def encode_message(image, message):
             logger.info("Successfully used deep learning model for encoding")
         except Exception as e:
             logger.error(f"Error in model-based encoding: {str(e)}", exc_info=True)
-            logger.info("Falling back to LSB method")
-            stego_img = lsb_encode(image, message)
+            logger.info("Falling back to LSB secure method")
+            stego_img = secure_lsb_encode(image, message)
     else:
         # LSB fallback method
-        logger.info("Using LSB fallback method for encoding")
-        stego_img = lsb_encode(image, message)
+        logger.info("Using LSB secure method for encoding")
+        stego_img = secure_lsb_encode(image, message)
     
     # Hitung metrik kualitas
     metrics = calculate_metrics(original_img, stego_img)
@@ -128,14 +164,18 @@ def encode_message(image, message):
     execution_time = time.time() - start_time
     metrics['execution_time'] = float(execution_time)
     
+    # Tambahkan info enkripsi dan kompresi
+    metrics['encrypted'] = password is not None
+    metrics['compressed'] = message.startswith("COMPRESSED:")
+    
     logger.info(f"Encoding completed in {execution_time:.2f} seconds")
     logger.info(f"Encoding metrics: PSNR={metrics['psnr']:.2f}, SSIM={metrics['ssim']:.4f}")
     
     return stego_img, metrics
 
-def lsb_encode(image, message):
+def secure_lsb_encode(image, message):
     """
-    Implementasi steganografi LSB (Least Significant Bit) sederhana
+    Implementasi steganografi LSB (Least Significant Bit) yang ditingkatkan keamanannya
     
     Args:
         image (numpy.ndarray): Gambar input dalam format RGB
@@ -162,21 +202,28 @@ def lsb_encode(image, message):
     # Copy gambar untuk tidak mengubah original
     stego = image.copy()
     
-    # Sembunyikan panjang pesan di 32 bit pertama
+    # Generate pseudo-random sequence for bit insertion using a simple seed
+    seed = (image.shape[0] * image.shape[1]) % 1000000
+    np.random.seed(seed)
+    
+    # Buat indeks acak untuk penyisipan bit (lebih sulit dideteksi)
+    # Skip 32 bit pertama untuk header
+    max_index = image.shape[0] * image.shape[1] * 3
+    indices = np.random.permutation(max_index - 32) + 32  # Skip header bits
+    indices = indices[:len(message_bits)]  # Ambil hanya yang diperlukan
+    
+    # Sembunyikan panjang pesan di 32 bit pertama (tetap sekuensial untuk kemudahan decode)
     msg_len = len(message_bits)
     msg_len_bits = format(msg_len, '032b')
     
-    bit_index = 0
-    total_pixels = image.shape[0] * image.shape[1]
-    
     try:
-        # Step 1: Sembunyikan panjang pesan (32 bit)
+        # Step 1: Sembunyikan panjang pesan (32 bit pertama)
         for i in range(32):
             # Hitung posisi pixel dan channel
-            pixel_index = bit_index // 3
+            pixel_index = i // 3
             row = pixel_index // image.shape[1]
             col = pixel_index % image.shape[1]
-            channel = bit_index % 3
+            channel = i % 3
             
             # Validasi bounds
             if row >= image.shape[0] or col >= image.shape[1]:
@@ -184,15 +231,17 @@ def lsb_encode(image, message):
             
             # Set bit paling tidak signifikan
             stego[row, col, channel] = (stego[row, col, channel] & 0xFE) | int(msg_len_bits[i])
-            bit_index += 1
         
-        # Step 2: Sembunyikan pesan
+        # Step 2: Sembunyikan pesan menggunakan indeks pseudo-random
         for i in range(len(message_bits)):
+            # Ambil indeks dari sequence acak
+            idx = indices[i]
+            
             # Hitung posisi pixel dan channel
-            pixel_index = bit_index // 3
+            pixel_index = idx // 3
             row = pixel_index // image.shape[1]
             col = pixel_index % image.shape[1]
-            channel = bit_index % 3
+            channel = idx % 3
             
             # Validasi bounds
             if row >= image.shape[0] or col >= image.shape[1]:
@@ -202,9 +251,36 @@ def lsb_encode(image, message):
             
             # Set bit paling tidak signifikan
             stego[row, col, channel] = (stego[row, col, channel] & 0xFE) | int(message_bits[i])
-            bit_index += 1
         
-        logger.info(f"LSB encoding successful: embedded {min(len(message_bits), i+1)} of {len(message_bits)} bits")
+        # Step 3: Tambahkan noise ke beberapa pixel acak untuk anti-steganalysis
+        # (tidak mengubah bit yang menyimpan pesan)
+        if stego.shape[0] * stego.shape[1] > 10000:  # Hanya untuk gambar cukup besar
+            noise_pixels = int(stego.shape[0] * stego.shape[1] * 0.01)  # 1% dari total pixel
+            for _ in range(noise_pixels):
+                # Pilih pixel acak
+                row = np.random.randint(0, stego.shape[0])
+                col = np.random.randint(0, stego.shape[1])
+                channel = np.random.randint(0, 3)
+                
+                # Jangan ubah bit yang berisi data
+                skip = False
+                idx = (row * image.shape[1] + col) * 3 + channel
+                
+                if idx < 32:  # Header
+                    skip = True
+                else:
+                    for m_idx in indices:
+                        if m_idx == idx:
+                            skip = True
+                            break
+                
+                if not skip:
+                    # Add minimal noise to LSB+1 (second least significant bit)
+                    # Ini meningkatkan resistensi terhadap steganalysis statistik
+                    if np.random.random() > 0.5:  # 50% chance
+                        stego[row, col, channel] = stego[row, col, channel] ^ 0x02  # Flip second LSB
+        
+        logger.info(f"LSB secure encoding successful: embedded {len(message_bits)} bits using pseudo-random pattern")
         
     except IndexError as e:
         logger.error(f"IndexError during LSB encoding: {str(e)}", exc_info=True)
