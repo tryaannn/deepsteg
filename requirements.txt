@@ -7,4 +7,9 @@ scikit-image==0.21.0
 matplotlib==3.7.2
 werkzeug==2.3.7
 gunicorn==21.2.0
-crptography
+cryptography==41.0.3
+tqdm==4.66.1
+requests==2.31.0
+zlib-wrapper==0.2.1
+scipy==1.11.3
+pandas==2.1.0

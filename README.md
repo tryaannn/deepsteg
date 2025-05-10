@@ -12,6 +12,8 @@ DeepSteg adalah aplikasi berbasis web untuk steganografi citra yang menggunakan 
 - **Metrik Kualitas** - Visualisasi metrik PSNR, SSIM, MSE, dan histogram similarity
 - **Antarmuka Responsif** - UI yang menarik, clean, dan responsif di semua device
 - **Robust Error Handling** - Penanganan error yang komprehensif
+- **Enkripsi Terintegrasi** - Mendukung enkripsi AES-256 untuk keamanan tambahan
+- **Kompresi Adaptif** - Kompresi teks secara otomatis untuk meningkatkan kapasitas
 
 ## 🖼️ Screenshot
 
@@ -22,6 +24,8 @@ DeepSteg adalah aplikasi berbasis web untuk steganografi citra yang menggunakan 
 - **Backend**: Python, Flask, TensorFlow, OpenCV
 - **Frontend**: HTML5, CSS3, JavaScript, Bootstrap 5
 - **Image Processing**: NumPy, scikit-image, PIL
+- **Enkripsi**: Cryptography (AES-256)
+- **Database**: SQLite (untuk penyimpanan statistik)
 
 ## 📋 Persyaratan Sistem
 
@@ -29,6 +33,7 @@ DeepSteg adalah aplikasi berbasis web untuk steganografi citra yang menggunakan 
 - 2GB RAM minimum (4GB direkomendasikan)
 - Sistem operasi: Windows, macOS, atau Linux
 - Browser modern (Chrome, Firefox, Edge, Safari)
+- Ruang disk: minimal 500MB
 
 ## 🔧 Instalasi & Menjalankan Aplikasi
 
@@ -82,17 +87,20 @@ DeepSteg adalah aplikasi berbasis web untuk steganografi citra yang menggunakan 
 1. Buka halaman "Encoding" dari menu navigasi
 2. Upload gambar cover (JPG, PNG, atau BMP)
 3. Masukkan pesan teks yang ingin disembunyikan
-4. Klik tombol "Sembunyikan Pesan"
-5. Lihat hasil steganografi dan metrik kualitas
-6. Download gambar hasil (stego image)
+4. Opsional: Aktifkan enkripsi dan atur password
+5. Opsional: Aktifkan kompresi untuk meningkatkan kapasitas pesan
+6. Klik tombol "Sembunyikan Pesan"
+7. Lihat hasil steganografi dan metrik kualitas
+8. Download gambar hasil (stego image)
 
 ### Mengekstrak Pesan (Decode)
 
 1. Buka halaman "Decoding" dari menu navigasi
 2. Upload gambar stego yang berisi pesan tersembunyi
-3. Klik tombol "Ekstrak Pesan"
-4. Lihat pesan yang berhasil diekstrak
-5. Salin pesan ke clipboard jika diperlukan
+3. Jika pesan terenkripsi, masukkan password yang sama saat encoding
+4. Klik tombol "Ekstrak Pesan"
+5. Lihat pesan yang berhasil diekstrak
+6. Salin pesan ke clipboard jika diperlukan
 
 ## 📊 Metrik Kualitas
 
@@ -114,7 +122,16 @@ Aplikasi menggunakan arsitektur GAN (Generative Adversarial Network) yang terdir
 
 ### Fallback LSB
 
-Jika model deep learning belum dilatih atau tidak tersedia, aplikasi akan menggunakan metode LSB (Least Significant Bit) sebagai fallback untuk tetap bisa melakukan steganografi.
+Jika model deep learning belum dilatih atau tidak tersedia, aplikasi akan menggunakan metode LSB (Least Significant Bit) yang telah ditingkatkan keamanannya dengan pendekatan:
+- Penyisipan bit dengan pola pseudo-random
+- Header panjang pesan terenkripsi
+- Anti-steganalysis noise padding
+
+### Pengamanan Data
+
+- Enkripsi menggunakan AES-256 dengan key derivation (PBKDF2)
+- Salt dan IV unik untuk setiap pesan
+- Password strength meter untuk memastikan keamanan
 
 ### Validasi & Error Handling
 
@@ -123,6 +140,48 @@ Aplikasi mengimplementasikan validasi komprehensif:
 - Pengecekan kapasitas pesan
 - Penanganan error yang robust
 - Logging untuk debugging
+
+## 🚀 Deployment ke Production
+
+### Menggunakan Docker
+
+1. Build image Docker:
+   ```bash
+   docker build -t deepsteg .
+   ```
+
+2. Jalankan container:
+   ```bash
+   docker run -p 8000:5000 deepsteg
+   ```
+
+3. Akses aplikasi di `http://localhost:8000`
+
+### Menggunakan Gunicorn (Ubuntu/Debian)
+
+1. Install Gunicorn:
+   ```bash
+   pip install gunicorn
+   ```
+
+2. Jalankan dengan Gunicorn:
+   ```bash
+   gunicorn -w 4 -b 0.0.0.0:8000 app:app
+   ```
+
+3. Setup dengan Nginx (opsional):
+   ```nginx
+   server {
+       listen 80;
+       server_name your_domain.com;
+
+       location / {
+           proxy_pass http://127.0.0.1:8000;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+       }
+   }
+   ```
 
 ## 🤝 Kontribusi
 
@@ -133,6 +192,13 @@ Kontribusi selalu diterima dengan tangan terbuka! Jika Anda ingin berkontribusi:
 3. Commit perubahan Anda (`git commit -m 'Add amazing feature'`)
 4. Push ke branch (`git push origin feature/amazing-feature`)
 5. Buka Pull Request
+
+## 🔧 Troubleshooting
+
+- **Error "ModuleNotFoundError"**: Pastikan semua dependensi terinstall dengan benar dan virtual environment telah diaktifkan.
+- **Error "GPU not available"**: TensorFlow akan otomatis menggunakan CPU jika GPU tidak tersedia. Tidak masalah untuk penggunaan normal, hanya mempengaruhi kecepatan.
+- **Error "Image file too large"**: Coba resize gambar menjadi lebih kecil. Batas ukuran default adalah 16MB.
+- **Error "Message too large"**: Coba aktifkan fitur kompresi untuk meningkatkan kapasitas pesan, atau gunakan gambar dengan resolusi lebih tinggi.
 
 ## 📝 Catatan Pengembangan
 

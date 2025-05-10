@@ -216,8 +216,3 @@ def calculate_password_strength(password):
     }
     
     return result
-
-# Contoh penggunaan:
-# encryptor = MessageEncryptor()
-# encrypted = encryptor.encrypt("Pesan rahasia", "password123")
-# decrypted = encryptor.decrypt(encrypted, "password123")

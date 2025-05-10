@@ -48,7 +48,7 @@ def init_model():
     
     return encoder_model is not None
 
-def encode_message(image, message, password=None, compression_level=6):
+def encode_message(image, message, password=None, compression_level=None):
     """
     Menyembunyikan pesan dalam gambar menggunakan model Deep Learning atau LSB fallback
     dengan tambahan enkripsi dan kompresi
@@ -57,7 +57,7 @@ def encode_message(image, message, password=None, compression_level=6):
         image (numpy.ndarray): Gambar input dalam format RGB
         message (str): Pesan teks yang akan disembunyikan
         password (str, optional): Password untuk enkripsi. Default None (tanpa enkripsi)
-        compression_level (int, optional): Level kompresi 0-9. Default 6
+        compression_level (int, optional): Level kompresi 0-9. Default None (tanpa kompresi)
         
     Returns:
         tuple: (stego_image, metrics) - Gambar stego dan metrik kualitasnya
@@ -81,19 +81,23 @@ def encode_message(image, message, password=None, compression_level=6):
     # Log info gambar
     logger.info(f"Encoding message of length {len(message)} into image of shape {image.shape}")
     
-    # Kompresi pesan terlebih dahulu jika pesan cukup panjang
+    # Kompresi pesan jika level kompresi diberikan
     original_size = len(message.encode('utf-8'))
-    if original_size > 100:  # Hanya kompresi jika lebih dari 100 bytes
-        compressed_message = zlib.compress(message.encode('utf-8'), level=compression_level)
-        compressed_size = len(compressed_message)
-        compression_ratio = compressed_size / original_size
-        
-        # Gunakan hasil kompresi jika efektif (lebih kecil dari asli)
-        if compression_ratio < 0.9:  # Minimal 10% pengurangan
-            logger.info(f"Message compressed: {original_size} -> {compressed_size} bytes ({compression_ratio:.2f})")
-            message = "COMPRESSED:" + compressed_message.hex()
-        else:
-            logger.info(f"Compression not effective ({compression_ratio:.2f}), using original message")
+    if compression_level is not None and original_size > 100:  # Hanya kompresi jika lebih dari 100 bytes
+        try:
+            compressed_message = zlib.compress(message.encode('utf-8'), level=compression_level)
+            compressed_size = len(compressed_message)
+            compression_ratio = compressed_size / original_size
+            
+            # Gunakan hasil kompresi jika efektif (lebih kecil dari asli)
+            if compression_ratio < 0.9:  # Minimal 10% pengurangan
+                logger.info(f"Message compressed: {original_size} -> {compressed_size} bytes ({compression_ratio:.2f})")
+                message = "COMPRESSED:" + compressed_message.hex()
+            else:
+                logger.info(f"Compression not effective ({compression_ratio:.2f}), using original message")
+        except Exception as e:
+            logger.error(f"Error compressing message: {str(e)}")
+            # Continue without compression if there's an error
     
     # Enkripsi pesan jika password diberikan
     if password:
@@ -116,8 +120,8 @@ def encode_message(image, message, password=None, compression_level=6):
     # Periksa kapasitas dengan margin keamanan
     if message_size_bits > (img_capacity_bits * 0.9):  # 90% kapasitas maksimum
         logger.warning(f"Message may be too large for this image: {message_size_bits} bits > {img_capacity_bits*0.9} bits")
-        if message_size_bits > img_capacity_bits:
-            raise ValueError(f"Pesan terlalu besar untuk gambar ini. Coba gunakan gambar yang lebih besar.")
+        if message_size_bits > img_capacity_bits - 40:  # Account for header bits (32) + terminator (8)
+            raise ValueError(f"Pesan terlalu besar untuk gambar ini. Coba gunakan gambar yang lebih besar atau aktifkan kompresi.")
     
     # Initialize model if needed
     model_available = init_model()
@@ -163,6 +167,10 @@ def encode_message(image, message, password=None, compression_level=6):
     # Tambahkan waktu eksekusi
     execution_time = time.time() - start_time
     metrics['execution_time'] = float(execution_time)
+    
+    # Calculate capacity used
+    capacity_used = (message_size_bits / img_capacity_bits) * 100
+    metrics['capacity_used'] = min(100.0, capacity_used)  # Cap at 100%
     
     # Tambahkan info enkripsi dan kompresi
     metrics['encrypted'] = password is not None

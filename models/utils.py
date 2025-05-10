@@ -1,4 +1,3 @@
-# utils.py
 import numpy as np
 import cv2
 import os
@@ -10,12 +9,13 @@ from skimage.metrics import peak_signal_noise_ratio as psnr
 # Konfigurasi logging
 logger = logging.getLogger(__name__)
 
-def preprocess_image(image):
+def preprocess_image(image, target_size=None):
     """
     Preprocessing gambar sebelum steganografi
     
     Args:
         image (numpy.ndarray): Gambar input dalam format RGB
+        target_size (tuple, optional): Ukuran target untuk resize (width, height) 
         
     Returns:
         numpy.ndarray: Gambar hasil preprocessing
@@ -39,19 +39,25 @@ def preprocess_image(image):
             image = np.clip(image, 0, 255).astype(np.uint8)
             logger.info(f"Converted image to dtype {image.dtype}")
         
-        # Resize ke ukuran yang lebih kecil jika terlalu besar
-        max_size = 1024
-        height, width = image.shape[:2]
-        
-        if height > max_size or width > max_size:
-            # Hitung rasio untuk mempertahankan aspek rasio
-            scale = min(max_size / width, max_size / height)
-            new_width = int(width * scale)
-            new_height = int(height * scale)
+        # Resize jika target_size diberikan
+        if target_size is not None:
+            # Resize gambar (width, height)
+            image = cv2.resize(image, (target_size[0], target_size[1]), interpolation=cv2.INTER_AREA)
+            logger.info(f"Resized image to {target_size[0]}x{target_size[1]}")
+        else:
+            # Resize ke ukuran yang lebih kecil jika terlalu besar
+            max_size = 1024
+            height, width = image.shape[:2]
             
-            # Resize gambar
-            image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_AREA)
-            logger.info(f"Resized image to {new_width}x{new_height}")
+            if height > max_size or width > max_size:
+                # Hitung rasio untuk mempertahankan aspek rasio
+                scale = min(max_size / width, max_size / height)
+                new_width = int(width * scale)
+                new_height = int(height * scale)
+                
+                # Resize gambar
+                image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_AREA)
+                logger.info(f"Resized large image to {new_width}x{new_height}")
         
         # Pastikan gambar memiliki 3 channel (RGB)
         if len(image.shape) < 3:
@@ -64,6 +70,7 @@ def preprocess_image(image):
             raise ValueError(f"Unexpected number of channels: {image.shape[2]}")
         
         # Ensure image dimensions are even (untuk beberapa operasi image processing)
+        height, width = image.shape[:2]
         if (height % 2 != 0 or width % 2 != 0) and height > 2 and width > 2:
             new_height = height - (height % 2)
             new_width = width - (width % 2)
@@ -136,12 +143,12 @@ def calculate_metrics(original, stego):
                 logger.info(f"Resized stego image to match original: {stego.shape}")
                 
         # Convert to same dtype for calculation
-        original = original.astype(np.float32)
-        stego = stego.astype(np.float32)
+        original_float = original.astype(np.float32)
+        stego_float = stego.astype(np.float32)
         
         # PSNR (Peak Signal-to-Noise Ratio)
         try:
-            psnr_value = psnr(original, stego, data_range=255.0)
+            psnr_value = psnr(original_float, stego_float, data_range=255.0)
         except Exception as e:
             logger.error(f"Error calculating PSNR: {str(e)}")
             psnr_value = 0.0
@@ -150,17 +157,17 @@ def calculate_metrics(original, stego):
         try:
             # Try with channel_axis first (newer scikit-image)
             try:
-                ssim_value = ssim(original, stego, channel_axis=2, data_range=255.0)
+                ssim_value = ssim(original_float, stego_float, channel_axis=2, data_range=255.0)
             except TypeError:
                 # Fallback untuk versi scikit-image yang lebih lama
-                ssim_value = ssim(original, stego, multichannel=True, data_range=255.0)
+                ssim_value = ssim(original_float, stego_float, multichannel=True, data_range=255.0)
         except Exception as e:
             logger.error(f"Error calculating SSIM: {str(e)}")
             ssim_value = 0.0
         
         # MSE (Mean Squared Error)
         try:
-            mse = np.mean((original - stego) ** 2)
+            mse = np.mean((original_float - stego_float) ** 2)
         except Exception as e:
             logger.error(f"Error calculating MSE: {str(e)}")
             mse = 999.0
@@ -171,6 +178,11 @@ def calculate_metrics(original, stego):
             for i in range(3):  # RGB channels
                 hist_orig = cv2.calcHist([original.astype(np.uint8)], [i], None, [256], [0, 256])
                 hist_stego = cv2.calcHist([stego.astype(np.uint8)], [i], None, [256], [0, 256])
+                
+                # Normalize histograms before comparison
+                cv2.normalize(hist_orig, hist_orig, 0, 1, cv2.NORM_MINMAX)
+                cv2.normalize(hist_stego, hist_stego, 0, 1, cv2.NORM_MINMAX)
+                
                 hist_correl = cv2.compareHist(hist_orig, hist_stego, cv2.HISTCMP_CORREL)
                 # Pastikan nilai korelasi valid
                 if np.isnan(hist_correl):
@@ -183,7 +195,7 @@ def calculate_metrics(original, stego):
         
         # Tambahkan metrik pixel difference
         try:
-            pixel_diff = np.mean(np.abs(original - stego)) / 255.0  # Normalize to 0-1
+            pixel_diff = np.mean(np.abs(original_float - stego_float)) / 255.0  # Normalize to 0-1
         except Exception as e:
             logger.error(f"Error calculating pixel difference: {str(e)}")
             pixel_diff = 1.0
