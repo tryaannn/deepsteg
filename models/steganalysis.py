@@ -1,444 +1,551 @@
 """
-enhanced_gan_model.py
-Implementasi arsitektur GAN yang ditingkatkan untuk steganografi
-dengan mekanisme attention dan kapasitas dinamis
+steganalysis.py
+Modul untuk analisis deteksi steganografi (steganalysis)
 """
 
-import tensorflow as tf
-from tensorflow.keras import layers, Model, Input
 import numpy as np
+import cv2
 import os
 import logging
+import tensorflow as tf
+from tensorflow.keras import layers, Model, Input
+from scipy.stats import chi2
+import matplotlib.pyplot as plt
+from sklearn.metrics import roc_auc_score, accuracy_score
 
 # Konfigurasi logging
 logger = logging.getLogger(__name__)
 
-class EnhancedGANSteganography:
+class Steganalysis:
     """
-    Implementasi steganografi berbasis GAN dengan kemampuan yang ditingkatkan:
-    - Attention mechanism
-    - Kapasitas dinamis
-    - Penanganan gambar multi-resolusi
-    - Adaptasi untuk kapasitas tinggi
+    Class untuk analisis deteksi steganografi
     """
     
-    def __init__(self, img_shape=(256, 256, 3), message_length=100, capacity_factor=0.5):
+    def __init__(self, config=None):
         """
-        Inisialisasi model GAN yang ditingkatkan
+        Inisialisasi steganalysis
         
         Args:
-            img_shape: Dimensi gambar input (tinggi, lebar, channel)
-            message_length: Panjang pesan default dalam bit
-            capacity_factor: Faktor kapasitas (0-1) yang mengontrol trade-off antara 
-                            kapasitas dan imperceptibility
+            config: Dictionary konfigurasi atau None untuk defaults
         """
-        self.img_shape = img_shape
-        self.message_length = message_length
-        self.capacity_factor = capacity_factor
+        self.default_config = {
+            'results_dir': 'results/steganalysis',
+            'models_dir': 'models/saved/steganalysis',
+            'img_shape': (256, 256, 3),
+            'batch_size': 32
+        }
         
-        # Inisialisasi model
-        self.encoder = self.build_enhanced_encoder()
-        self.decoder = self.build_enhanced_decoder()
-        self.discriminator = self.build_discriminator()
+        self.config = self.default_config.copy()
+        if config:
+            self.config.update(config)
+            
+        # Create directories
+        os.makedirs(self.config['results_dir'], exist_ok=True)
+        os.makedirs(self.config['models_dir'], exist_ok=True)
         
-        # Kompilasi model lengkap
-        self.gan = self.build_gan()
-
-    def build_enhanced_encoder(self):
+        # Initialize detector model
+        self.detector_model = None
+        
+    def chi_square_analysis(self, image):
         """
-        Membangun model encoder yang ditingkatkan dengan attention mechanism
+        Analisis Chi-Square untuk deteksi steganografi
+        
+        Args:
+            image: Input image (cover atau stego)
+            
+        Returns:
+            dict: Hasil analisis chi-square
         """
-        # Input gambar cover
-        cover_input = Input(shape=self.img_shape, name='cover_input')
+        # Convert to uint8 if needed
+        if image.dtype == np.float32 and image.max() <= 1.0:
+            img = (image * 255).astype(np.uint8)
+        else:
+            img = image.astype(np.uint8)
+            
+        # Extract LSB planes
+        lsb_planes = []
+        for c in range(img.shape[2]):
+            lsb = img[:, :, c] & 1
+            lsb_planes.append(lsb.flatten())
+            
+        # Combine all LSB values
+        all_lsb = np.concatenate(lsb_planes)
         
-        # Input pesan (binary)
-        message_input = Input(shape=(self.message_length,), name='message_input')
+        # Count 0s and 1s
+        zeros = np.sum(all_lsb == 0)
+        ones = np.sum(all_lsb == 1)
+        total = len(all_lsb)
         
-        # Encoder untuk gambar (extractor)
-        x = layers.Conv2D(64, (3, 3), strides=(2, 2), padding='same')(cover_input)
-        x = layers.LeakyReLU(alpha=0.2)(x)
-        x = layers.BatchNormalization()(x)
+        # Expected counts for natural image (should be approximately equal)
+        expected = total / 2
         
-        x = layers.Conv2D(128, (3, 3), strides=(2, 2), padding='same')(x)
-        x = layers.LeakyReLU(alpha=0.2)(x)
-        x = layers.BatchNormalization()(x)
+        # Calculate chi-square statistic
+        chi_square_val = ((zeros - expected)**2 + (ones - expected)**2) / expected
         
-        # Spatial features
-        spatial_features = x
+        # Calculate p-value
+        p_value = 1 - chi2.cdf(chi_square_val, df=1)
         
-        # Encoder untuk pesan
-        m = layers.Dense(512, activation='relu')(message_input)
-        m = layers.Dense(1024, activation='relu')(m)
-        m = layers.Dense(self.img_shape[0] * self.img_shape[1] // 16, activation='sigmoid')(m)
-        m = layers.Reshape((self.img_shape[0] // 4, self.img_shape[1] // 4, 1))(m)
-        
-        # Attention mechanism - menggunakan pesan untuk menentukan area penyisipan
-        attention = layers.Conv2D(128, (1, 1), padding='same', activation='sigmoid')(x)
-        x = layers.multiply([x, attention])
-        
-        # Gabungkan pesan dengan fitur gambar melalui attention
-        m_upsample = layers.UpSampling2D(size=(2, 2))(m)
-        combined = layers.Concatenate()([x, m_upsample])
-        
-        # Decoder (generator output)
-        x = layers.Conv2DTranspose(128, (4, 4), strides=(2, 2), padding='same')(combined)
-        x = layers.LeakyReLU(alpha=0.2)(x)
-        x = layers.BatchNormalization()(x)
-        
-        # Skip connection dengan spatial features
-        x = layers.Concatenate()([x, spatial_features])
-        
-        x = layers.Conv2DTranspose(64, (4, 4), strides=(2, 2), padding='same')(x)
-        x = layers.LeakyReLU(alpha=0.2)(x)
-        x = layers.BatchNormalization()(x)
-        
-        # Output layer - generate gambar stego
-        raw_output = layers.Conv2D(3, (3, 3), padding='same', activation='tanh', name='raw_output')(x)
-        
-        # Residual connection untuk membatasi perubahan pada gambar cover
-        # Parameter alpha mengontrol kekuatan penyisipan (modifiable)
-        alpha = layers.Lambda(lambda x: x * self.capacity_factor)(raw_output)
-        stego_output = layers.Add(name='stego_output')([cover_input, alpha])
-        
-        return Model(inputs=[cover_input, message_input], outputs=stego_output, name='encoder')
-
-    def build_enhanced_decoder(self):
+        # Interpretation
+        if p_value < 0.05:
+            interpretation = "Likely contains steganography"
+        else:
+            interpretation = "Likely clean image"
+            
+        return {
+            'chi_square_value': float(chi_square_val),
+            'p_value': float(p_value),
+            'zeros_count': int(zeros),
+            'ones_count': int(ones),
+            'interpretation': interpretation
+        }
+    
+    def rs_analysis(self, image):
         """
-        Membangun model decoder yang ditingkatkan dengan attention mechanism
+        RS (Regular-Singular) Analysis
+        
+        Args:
+            image: Input image
+            
+        Returns:
+            dict: Hasil analisis RS
         """
-        # Input gambar stego
-        stego_input = Input(shape=self.img_shape, name='stego_input')
+        # Convert to grayscale
+        if len(image.shape) == 3:
+            if image.dtype == np.float32 and image.max() <= 1.0:
+                gray = cv2.cvtColor((image * 255).astype(np.uint8), cv2.COLOR_RGB2GRAY)
+            else:
+                gray = cv2.cvtColor(image.astype(np.uint8), cv2.COLOR_RGB2GRAY)
+        else:
+            gray = image
+            
+        # Define discrimination function
+        def f(g):
+            return np.sum(np.abs(np.diff(g)))
         
-        # Feature extraction blocks with residual connections
-        # Block 1
-        x = layers.Conv2D(64, (3, 3), padding='same')(stego_input)
-        x = layers.LeakyReLU(alpha=0.2)(x)
-        x = layers.BatchNormalization()(x)
-        block1_output = layers.MaxPooling2D((2, 2))(x)
+        # Define masks
+        mask_regular = np.array([1, 0, 1, 0])  # Regular mask
+        mask_singular = np.array([-1, 0, -1, 0])  # Singular mask (negated)
         
-        # Block 2
-        x = layers.Conv2D(128, (3, 3), padding='same')(block1_output)
-        x = layers.LeakyReLU(alpha=0.2)(x)
-        x = layers.BatchNormalization()(x)
-        block2_output = layers.MaxPooling2D((2, 2))(x)
+        # Counters
+        rm_count = 0  # Regular groups with positive mask
+        sm_count = 0  # Singular groups with positive mask
+        r_m_count = 0  # Regular groups with negative mask
+        s_m_count = 0  # Singular groups with negative mask
+        total_groups = 0
         
-        # Block 3
-        x = layers.Conv2D(256, (3, 3), padding='same')(block2_output)
-        x = layers.LeakyReLU(alpha=0.2)(x)
-        x = layers.BatchNormalization()(x)
-        block3_output = layers.MaxPooling2D((2, 2))(x)
+        # Process image in 2x2 blocks
+        h, w = gray.shape
+        for i in range(0, h-1, 2):
+            for j in range(0, w-1, 2):
+                # Extract 2x2 block
+                block = gray[i:i+2, j:j+2].flatten()
+                
+                if len(block) < 4:
+                    continue
+                    
+                # Calculate discrimination function for original block
+                f_original = f(block)
+                
+                # Apply positive mask (flip LSB where mask is 1)
+                block_positive = block.copy()
+                for k in range(4):
+                    if mask_regular[k] == 1:
+                        block_positive[k] = block_positive[k] ^ 1
+                f_positive = f(block_positive)
+                
+                # Apply negative mask (flip LSB where mask is -1)
+                block_negative = block.copy()
+                for k in range(4):
+                    if mask_singular[k] == -1:
+                        block_negative[k] = block_negative[k] ^ 1
+                f_negative = f(block_negative)
+                
+                # Classify groups
+                if f_positive > f_original:
+                    rm_count += 1
+                elif f_positive < f_original:
+                    sm_count += 1
+                    
+                if f_negative > f_original:
+                    r_m_count += 1
+                elif f_negative < f_original:
+                    s_m_count += 1
+                    
+                total_groups += 1
         
-        # Attention block
-        attention = layers.Conv2D(256, (1, 1), padding='same', activation='sigmoid', name='attention_map')(block3_output)
-        x = layers.multiply([block3_output, attention])
+        # Calculate relative frequencies
+        if total_groups > 0:
+            RM = rm_count / total_groups
+            SM = sm_count / total_groups
+            R_M = r_m_count / total_groups
+            S_M = s_m_count / total_groups
+            
+            # Calculate expected values for clean image
+            # For clean image, we expect RM ≈ R_M and SM ≈ S_M
+            
+            # Calculate RS measure
+            d = RM - SM
+            d_neg = R_M - S_M
+            
+            # Estimate embedding rate
+            if abs(d - d_neg) > 1e-10:
+                p = d_neg / (d - d_neg)
+                p = max(0, min(p, 1))  # Clamp to [0, 1]
+            else:
+                p = 0
+                
+            # Calculate RS statistic
+            rs_statistic = 2 * (RM - R_M)
+            
+            # Interpretation
+            if p > 0.1:
+                interpretation = "Likely contains steganography"
+                confidence = "High" if p > 0.3 else "Medium"
+            else:
+                interpretation = "Likely clean image"
+                confidence = "High" if p < 0.05 else "Medium"
+        else:
+            RM = SM = R_M = S_M = 0
+            p = 0
+            rs_statistic = 0
+            interpretation = "Unable to analyze"
+            confidence = "Low"
+            
+        return {
+            'embedding_rate': float(p),
+            'rs_statistic': float(rs_statistic),
+            'RM': float(RM),
+            'SM': float(SM),
+            'R_M': float(R_M),
+            'S_M': float(S_M),
+            'interpretation': interpretation,
+            'confidence': confidence,
+            'mean_stego': float(p)  # For compatibility
+        }
+    
+    def build_cnn_detector(self, img_shape=None):
+        """
+        Build CNN-based steganography detector
         
-        # Block 4 with skip connection
-        x = layers.Conv2D(512, (3, 3), padding='same')(x)
-        x = layers.LeakyReLU(alpha=0.2)(x)
+        Args:
+            img_shape: Input image shape
+            
+        Returns:
+            tf.keras.Model: CNN detector model
+        """
+        if img_shape is None:
+            img_shape = self.config['img_shape']
+            
+        # Input layer
+        inputs = Input(shape=img_shape)
+        
+        # Feature extraction layers
+        x = layers.Conv2D(32, (3, 3), activation='relu', padding='same')(inputs)
         x = layers.BatchNormalization()(x)
         x = layers.MaxPooling2D((2, 2))(x)
         
-        # Global features
-        x = layers.GlobalAveragePooling2D()(x)
-        
-        # Fully connected layers
-        x = layers.Dense(1024, activation='relu')(x)
-        x = layers.Dropout(0.5)(x)  # Dropout untuk regularisasi
-        x = layers.Dense(512, activation='relu')(x)
-        
-        # Output probabilitas untuk setiap bit pesan
-        message_output = layers.Dense(self.message_length, activation='sigmoid', name='message_output')(x)
-        
-        return Model(inputs=stego_input, outputs=message_output, name='decoder')
-
-    def build_discriminator(self):
-        """
-        Membangun model discriminator yang membedakan antara gambar asli dan stego
-        """
-        img_input = Input(shape=self.img_shape, name='disc_input')
-        
-        # Feature extraction with leaky ReLU
-        x = layers.Conv2D(64, (3, 3), strides=(2, 2), padding='same')(img_input)
-        x = layers.LeakyReLU(alpha=0.2)(x)
-        
-        x = layers.Conv2D(128, (3, 3), strides=(2, 2), padding='same')(x)
-        x = layers.LeakyReLU(alpha=0.2)(x)
+        x = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(x)
         x = layers.BatchNormalization()(x)
+        x = layers.MaxPooling2D((2, 2))(x)
         
-        x = layers.Conv2D(256, (3, 3), strides=(2, 2), padding='same')(x)
-        x = layers.LeakyReLU(alpha=0.2)(x)
+        x = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(x)
         x = layers.BatchNormalization()(x)
+        x = layers.MaxPooling2D((2, 2))(x)
         
-        x = layers.Conv2D(512, (3, 3), strides=(2, 2), padding='same')(x)
-        x = layers.LeakyReLU(alpha=0.2)(x)
+        x = layers.Conv2D(256, (3, 3), activation='relu', padding='same')(x)
         x = layers.BatchNormalization()(x)
+        x = layers.MaxPooling2D((2, 2))(x)
         
-        # Global features
+        # Global pooling
         x = layers.GlobalAveragePooling2D()(x)
         
         # Dense layers
         x = layers.Dense(512, activation='relu')(x)
+        x = layers.Dropout(0.5)(x)
+        x = layers.Dense(256, activation='relu')(x)
         x = layers.Dropout(0.3)(x)
         
-        # Output probability
-        disc_output = layers.Dense(1, activation='sigmoid', name='disc_output')(x)
+        # Output layer (binary classification: clean vs stego)
+        outputs = layers.Dense(1, activation='sigmoid')(x)
         
-        model = Model(inputs=img_input, outputs=disc_output, name='discriminator')
+        # Create model
+        model = Model(inputs=inputs, outputs=outputs, name='stego_detector')
+        
+        # Compile model
         model.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001, beta_1=0.5),
+            optimizer='adam',
             loss='binary_crossentropy',
-            metrics=['accuracy']
+            metrics=['accuracy', 'precision', 'recall']
         )
+        
         return model
-
-    def build_gan(self):
-        """
-        Membangun model GAN lengkap (encoder + decoder + discriminator)
-        """
-        # Input
-        cover_input = Input(shape=self.img_shape, name='cover_input')
-        message_input = Input(shape=(self.message_length,), name='message_input')
-        
-        # Encode pesan ke dalam gambar
-        stego_img = self.encoder([cover_input, message_input])
-        
-        # Ekstrak pesan dari gambar stego
-        decoded_message = self.decoder(stego_img)
-        
-        # Klasifikasi gambar
-        self.discriminator.trainable = False  # Nonaktifkan training untuk discriminator
-        is_fake = self.discriminator(stego_img)
-        
-        # Buat model lengkap
-        gan_model = Model(
-            inputs=[cover_input, message_input], 
-            outputs=[stego_img, decoded_message, is_fake]
-        )
-        
-        # Kompilasi model
-        gan_model.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001, beta_1=0.5),
-            loss={
-                'stego_output': 'mean_squared_error',  # Loss untuk kualitas gambar
-                'message_output': 'binary_crossentropy',  # Loss untuk akurasi pesan
-                'disc_output': 'binary_crossentropy'  # Loss untuk menipu discriminator
-            },
-            loss_weights={
-                'stego_output': 0.7,  # Prioritas kualitas gambar tinggi
-                'message_output': 0.2,  # Prioritas akurasi pesan menengah
-                'disc_output': 0.1  # Prioritas menipu discriminator rendah
-            }
-        )
-        
-        return gan_model
     
-    def train_on_batch(self, cover_images, messages):
+    def train_cnn_detector(self, cover_images, stego_images, epochs=50, validation_split=0.2):
         """
-        Latih model pada satu batch data
+        Train CNN detector on cover and stego images
         
         Args:
-            cover_images: Batch gambar cover
-            messages: Batch pesan untuk disembunyikan
+            cover_images: Array of cover images
+            stego_images: Array of stego images
+            epochs: Number of training epochs
+            validation_split: Fraction for validation
             
         Returns:
-            Metrics hasil training
+            tf.keras.callbacks.History: Training history
         """
-        # Pastikan input dalam format yang benar
-        if len(cover_images.shape) != 4:
-            raise ValueError(f"Cover images harus berbentuk (batch_size, height, width, channels), tetapi diberikan {cover_images.shape}")
+        # Prepare data
+        X = np.concatenate([cover_images, stego_images], axis=0)
+        y = np.concatenate([
+            np.zeros(len(cover_images)),  # 0 for cover
+            np.ones(len(stego_images))    # 1 for stego
+        ])
         
-        if len(messages.shape) != 2:
-            raise ValueError(f"Messages harus berbentuk (batch_size, message_length), tetapi diberikan {messages.shape}")
+        # Shuffle data
+        indices = np.random.permutation(len(X))
+        X = X[indices]
+        y = y[indices]
         
-        batch_size = cover_images.shape[0]
-        
-        # 1. Train discriminator dengan gambar asli
-        real_labels = np.ones((batch_size, 1))
-        fake_labels = np.zeros((batch_size, 1))
-        
-        # Generate gambar stego
-        stego_images = self.encoder.predict([cover_images, messages])
-        
-        # Latih discriminator dengan gambar asli
-        d_loss_real = self.discriminator.train_on_batch(cover_images, real_labels)
-        
-        # Latih discriminator dengan gambar stego
-        d_loss_fake = self.discriminator.train_on_batch(stego_images, fake_labels)
-        
-        # Rata-rata loss discriminator
-        d_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
-        
-        # 2. Train generator (encoder + decoder)
-        # Saat melatih generator, kita ingin discriminator menganggap gambar stego sebagai gambar asli
-        g_loss = self.gan.train_on_batch(
-            [cover_images, messages],
-            {
-                'stego_output': cover_images,  # Target untuk gambar stego: mirip dengan gambar asli
-                'message_output': messages,  # Target untuk decoded message: sama dengan pesan asli
-                'disc_output': real_labels  # Target untuk discriminator: menipu bahwa gambar stego adalah asli
-            }
+        # Build model if not exists
+        if self.detector_model is None:
+            self.detector_model = self.build_cnn_detector()
+            
+        # Train model
+        history = self.detector_model.fit(
+            X, y,
+            batch_size=self.config['batch_size'],
+            epochs=epochs,
+            validation_split=validation_split,
+            verbose=1
         )
         
-        return {
-            'discriminator_loss': d_loss[0],
-            'discriminator_accuracy': d_loss[1],
-            'generator_loss': g_loss[0],
-            'image_loss': g_loss[1],
-            'message_loss': g_loss[2],
-            'adversarial_loss': g_loss[3]
+        # Save model
+        model_path = os.path.join(self.config['models_dir'], 'cnn_detector.h5')
+        self.detector_model.save(model_path)
+        logger.info(f"Detector model saved to {model_path}")
+        
+        return history
+    
+    def evaluate_steganography_method(self, cover_images, stego_images, method_name="unknown"):
+        """
+        Evaluate steganography method using multiple detection techniques
+        
+        Args:
+            cover_images: Array of cover images
+            stego_images: Array of stego images  
+            method_name: Name of steganography method
+            
+        Returns:
+            dict: Evaluation results
+        """
+        results = {
+            'method_name': method_name,
+            'num_cover': len(cover_images),
+            'num_stego': len(stego_images)
         }
-    
-    def set_capacity_factor(self, factor):
-        """
-        Set kapasitas penyisipan (trade-off antara kapasitas dan imperceptibility)
         
-        Args:
-            factor: Nilai antara 0-1 (0: imperceptibility tinggi, kapasitas rendah;
-                                     1: imperceptibility rendah, kapasitas tinggi)
-        """
-        if factor < 0 or factor > 1:
-            raise ValueError("Capacity factor harus antara 0 dan 1")
-        
-        self.capacity_factor = factor
-        
-        # Rebuild model dengan kapasitas baru
-        self.encoder = self.build_enhanced_encoder()
-        self.gan = self.build_gan()
-        
-        return self.capacity_factor
-    
-    def save_models(self, path):
-        """
-        Menyimpan model-model ke disk
-        
-        Args:
-            path: Path direktori untuk menyimpan model
-        """
-        # Pastikan direktori ada
-        os.makedirs(path, exist_ok=True)
-        
-        try:
-            self.encoder.save(f"{path}/encoder.h5")
-            self.decoder.save(f"{path}/decoder.h5")
-            self.discriminator.save(f"{path}/discriminator.h5")
+        # Chi-square analysis
+        chi_results = {'cover': [], 'stego': []}
+        for img in cover_images[:100]:  # Limit for speed
+            chi_results['cover'].append(self.chi_square_analysis(img))
+        for img in stego_images[:100]:
+            chi_results['stego'].append(self.chi_square_analysis(img))
             
-            # Simpan konfigurasi tambahan
-            config = {
-                'img_shape': self.img_shape,
-                'message_length': self.message_length,
-                'capacity_factor': self.capacity_factor
-            }
+        # Average chi-square results
+        cover_chi_avg = np.mean([r['chi_square_value'] for r in chi_results['cover']])
+        stego_chi_avg = np.mean([r['chi_square_value'] for r in chi_results['stego']])
+        cover_p_avg = np.mean([r['p_value'] for r in chi_results['cover']])
+        stego_p_avg = np.mean([r['p_value'] for r in chi_results['stego']])
+        
+        results['chi_square_test'] = {
+            'cover_avg_chi': float(cover_chi_avg),
+            'stego_avg_chi': float(stego_chi_avg),
+            'cover_avg_p': float(cover_p_avg),
+            'stego_avg_p': float(stego_p_avg),
+            'p_value': float(stego_p_avg)  # For compatibility
+        }
+        
+        # RS analysis
+        rs_results = {'cover': [], 'stego': []}
+        for img in cover_images[:100]:
+            rs_results['cover'].append(self.rs_analysis(img))
+        for img in stego_images[:100]:
+            rs_results['stego'].append(self.rs_analysis(img))
             
-            with open(f"{path}/config.json", 'w') as f:
-                import json
-                json.dump(config, f)
+        # Average RS results
+        cover_rs_avg = np.mean([r['embedding_rate'] for r in rs_results['cover']])
+        stego_rs_avg = np.mean([r['embedding_rate'] for r in rs_results['stego']])
+        
+        results['rs_analysis'] = {
+            'cover_avg_rate': float(cover_rs_avg),
+            'stego_avg_rate': float(stego_rs_avg),
+            'mean_stego': float(stego_rs_avg)  # For compatibility
+        }
+        
+        # CNN-based detection if model exists
+        detector_path = os.path.join(self.config['models_dir'], 'cnn_detector.h5')
+        if os.path.exists(detector_path) or self.detector_model is not None:
+            if self.detector_model is None:
+                self.detector_model = tf.keras.models.load_model(detector_path)
                 
-            logger.info(f"Model berhasil disimpan ke {path}")
-            return True
-        except Exception as e:
-            logger.error(f"Error saat menyimpan model: {str(e)}")
-            return False
+            # Evaluate on test set
+            X_test = np.concatenate([cover_images[:200], stego_images[:200]], axis=0)
+            y_test = np.concatenate([
+                np.zeros(len(cover_images[:200])),
+                np.ones(len(stego_images[:200]))
+            ])
+            
+            # Get predictions
+            y_pred = self.detector_model.predict(X_test, verbose=0)
+            y_pred_binary = (y_pred > 0.5).astype(int)
+            
+            # Calculate metrics
+            accuracy = accuracy_score(y_test, y_pred_binary)
+            auc = roc_auc_score(y_test, y_pred)
+            
+            results['cnn_detector'] = {
+                'accuracy': float(accuracy),
+                'roc_auc': float(auc),
+                'cover_detection_rate': float(np.mean(y_pred[:len(cover_images[:200])])),
+                'stego_detection_rate': float(np.mean(y_pred[len(cover_images[:200]):]))
+            }
+        
+        # Overall assessment
+        detection_indicators = []
+        
+        # Chi-square indicator (lower p-value for stego = more detectable)
+        if stego_p_avg < 0.05:
+            detection_indicators.append(1)
+        else:
+            detection_indicators.append(0)
+            
+        # RS indicator (higher rate for stego = more detectable)
+        if stego_rs_avg > 0.1:
+            detection_indicators.append(1)
+        else:
+            detection_indicators.append(0)
+            
+        # CNN indicator if available
+        if 'cnn_detector' in results:
+            if results['cnn_detector']['roc_auc'] > 0.7:
+                detection_indicators.append(1)
+            else:
+                detection_indicators.append(0)
+                
+        # Overall detectability score
+        if detection_indicators:
+            detectability = np.mean(detection_indicators)
+        else:
+            detectability = 0.5
+            
+        results['overall_assessment'] = {
+            'detectability_score': float(detectability),
+            'interpretation': 'Easily detectable' if detectability > 0.7 else 
+                           'Moderately detectable' if detectability > 0.3 else 
+                           'Difficult to detect'
+        }
+        
+        # Save results
+        import json
+        results_path = os.path.join(self.config['results_dir'], f'{method_name}_analysis.json')
+        with open(results_path, 'w') as f:
+            json.dump(results, f, indent=2)
+            
+        logger.info(f"Steganalysis results saved to {results_path}")
+        
+        return results
     
-    def load_models(self, path):
+    def visualize_analysis(self, cover_images, stego_images, results=None):
         """
-        Memuat model-model dari disk
+        Visualize steganalysis results
         
         Args:
-            path: Path direktori tempat model disimpan
+            cover_images: Array of cover images
+            stego_images: Array of stego images
+            results: Analysis results dictionary
             
         Returns:
-            Boolean berhasil/gagal
+            matplotlib.figure.Figure: Figure with visualizations
         """
-        try:
-            # Load konfigurasi
-            import json
-            try:
-                with open(f"{path}/config.json", 'r') as f:
-                    config = json.load(f)
-                    
-                self.img_shape = tuple(config.get('img_shape', self.img_shape))
-                self.message_length = config.get('message_length', self.message_length)
-                self.capacity_factor = config.get('capacity_factor', self.capacity_factor)
-            except FileNotFoundError:
-                logger.warning(f"File konfigurasi tidak ditemukan di {path}/config.json")
-            
-            # Load model
-            self.encoder = tf.keras.models.load_model(f"{path}/encoder.h5")
-            self.decoder = tf.keras.models.load_model(f"{path}/decoder.h5")
-            self.discriminator = tf.keras.models.load_model(f"{path}/discriminator.h5")
-            
-            # Rebuild GAN
-            self.gan = self.build_gan()
-            
-            logger.info(f"Model berhasil dimuat dari {path}")
-            return True
-        except Exception as e:
-            logger.error(f"Error saat memuat model: {str(e)}")
-            return False
-            
-    def encode_message(self, cover_image, message):
-        """
-        Encode pesan ke dalam gambar menggunakan model GAN
+        fig, axes = plt.subplots(2, 3, figsize=(15, 10))
         
-        Args:
-            cover_image: Gambar cover (numpy array)
-            message: Pesan dalam bentuk bit (numpy array)
-            
-        Returns:
-            Stego image (numpy array)
-        """
-        # Normalisasi input
-        if cover_image.dtype != np.float32 or cover_image.max() > 1.0:
-            cover_image = cover_image.astype(np.float32) / 255.0
-            
-        # Reshape jika diperlukan
-        if len(cover_image.shape) == 3:  # single image
-            cover_image = np.expand_dims(cover_image, axis=0)
-            
-        # Convert message to binary if it's a string
-        if isinstance(message, str):
-            binary_message = []
-            for char in message:
-                # Convert char to 8-bit binary
-                binary_message.extend([int(bit) for bit in format(ord(char), '08b')])
-            message = np.array(binary_message)
+        # Sample images comparison
+        ax = axes[0, 0]
+        ax.imshow(cover_images[0])
+        ax.set_title('Sample Cover Image')
+        ax.axis('off')
         
-        # Pastikan panjang pesan sesuai
-        if len(message) > self.message_length:
-            message = message[:self.message_length]
-        elif len(message) < self.message_length:
-            message = np.pad(message, (0, self.message_length - len(message)))
+        ax = axes[0, 1]  
+        ax.imshow(stego_images[0])
+        ax.set_title('Sample Stego Image')
+        ax.axis('off')
+        
+        # Difference (amplified)
+        ax = axes[0, 2]
+        if cover_images[0].shape == stego_images[0].shape:
+            diff = np.abs(cover_images[0] - stego_images[0])
+            if len(diff.shape) == 3:
+                diff = np.mean(diff, axis=2)
+            diff = np.clip(diff * 50, 0, 1)  # Amplify differences
+            ax.imshow(diff, cmap='hot')
+        ax.set_title('Difference (50x amplified)')
+        ax.axis('off')
+        
+        # LSB histograms
+        ax = axes[1, 0]
+        
+        # Extract LSB planes
+        def get_lsb_hist(images, max_images=50):
+            lsb_values = []
+            for img in images[:max_images]:
+                if img.dtype == np.float32 and img.max() <= 1.0:
+                    img_uint8 = (img * 255).astype(np.uint8)
+                else:
+                    img_uint8 = img.astype(np.uint8)
+                lsb = img_uint8 & 1
+                lsb_values.extend(lsb.flatten())
+            return np.array(lsb_values)
             
-        # Reshape message
-        message = np.expand_dims(message, axis=0)
+        cover_lsb = get_lsb_hist(cover_images)
+        stego_lsb = get_lsb_hist(stego_images)
         
-        # Generate stego image
-        stego_image = self.encoder.predict([cover_image, message])[0]
+        ax.hist([cover_lsb, stego_lsb], bins=2, alpha=0.7, label=['Cover', 'Stego'], density=True)
+        ax.set_xlabel('LSB Value')
+        ax.set_ylabel('Frequency')
+        ax.set_title('LSB Distribution')
+        ax.legend()
         
-        return stego_image
-    
-    def decode_message(self, stego_image):
-        """
-        Decode pesan dari gambar stego menggunakan model GAN
-        
-        Args:
-            stego_image: Gambar stego (numpy array)
+        # Results visualization if provided
+        if results:
+            # Chi-square results
+            ax = axes[1, 1]
+            chi_data = results.get('chi_square_test', {})
+            cover_p = chi_data.get('cover_avg_p', 0.5)
+            stego_p = chi_data.get('stego_avg_p', 0.5)
             
-        Returns:
-            Pesan dalam bentuk bit (numpy array)
-        """
-        # Normalisasi input
-        if stego_image.dtype != np.float32 or stego_image.max() > 1.0:
-            stego_image = stego_image.astype(np.float32) / 255.0
+            ax.bar(['Cover', 'Stego'], [cover_p, stego_p], alpha=0.7)
+            ax.set_ylabel('p-value')
+            ax.set_title('Chi-Square Test Results')
+            ax.axhline(y=0.05, color='r', linestyle='--', alpha=0.7, label='p=0.05')
+            ax.legend()
             
-        # Reshape jika diperlukan
-        if len(stego_image.shape) == 3:  # single image
-            stego_image = np.expand_dims(stego_image, axis=0)
+            # RS analysis results
+            ax = axes[1, 2]
+            rs_data = results.get('rs_analysis', {})
+            cover_rate = rs_data.get('cover_avg_rate', 0)
+            stego_rate = rs_data.get('stego_avg_rate', 0)
             
-        # Ekstrak pesan
-        message_prob = self.decoder.predict(stego_image)[0]
+            ax.bar(['Cover', 'Stego'], [cover_rate, stego_rate], alpha=0.7)
+            ax.set_ylabel('Estimated Embedding Rate')
+            ax.set_title('RS Analysis Results')
+        else:
+            # Empty plots
+            axes[1, 1].text(0.5, 0.5, 'No Results Available', 
+                           ha='center', va='center', transform=axes[1, 1].transAxes)
+            axes[1, 1].set_title('Chi-Square Results')
+            
+            axes[1, 2].text(0.5, 0.5, 'No Results Available', 
+                           ha='center', va='center', transform=axes[1, 2].transAxes)
+            axes[1, 2].set_title('RS Analysis Results')
         
-        # Konversi probabilitas ke bit (threshold = 0.5)
-        message_bits = (message_prob > 0.5).astype(int)
-        
-        return message_bits
+        plt.tight_layout()
+        return fig

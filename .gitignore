@@ -61,3 +61,12 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *.cover
+
+# Files marked for deletion during cleanup
+models/gan_model.py
+static/js/main.js
+
+# Temporary files
+*.tmp
+*.bak
+*~
