@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import datetime
 from sklearn.model_selection import train_test_split
-from models.utils import preprocess_image, calculate_metrics
+from models.utils_pretrained import preprocess_image, calculate_metrics
 from models.steganalysis import Steganalysis
 from models.enhanced_gan_model import EnhancedGANSteganography
 from models.enhanced_encoder import encode_message

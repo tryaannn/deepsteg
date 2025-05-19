@@ -15,7 +15,7 @@ import argparse
 import json
 
 from models.enhanced_gan_model import EnhancedGANSteganography
-from models.utils import preprocess_image, text_to_bits
+from models.utils_pretrained import preprocess_image, text_to_bits
 
 # Konfigurasi logging
 logging.basicConfig(

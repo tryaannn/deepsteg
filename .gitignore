@@ -1,9 +1,25 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Virtual environments
+# Virtual Environments
 venv/
 env/
 ENV/
@@ -11,23 +27,65 @@ ENV/
 .venv/
 env.bak/
 venv.bak/
+pythonenv*
 
-# Distribution / packaging
-dist/
+# Distribution / Packaging
+.Python
 build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
 *.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
 # Flask specific
 instance/
 .webassets-cache
+flask_session/
 
-# Upload folders and temporary files
+# Data Files
 static/uploads/*
 !static/uploads/.gitkeep
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
 
-# Model files (they can be large)
+# Model files (large binaries)
 models/saved/*.h5
+models/saved/*.keras
+models/saved/*.pt
+models/saved/*.pth
+models/saved/*.onnx
+models/saved/*.tflite
+models/saved/*.pb
 models/checkpoints/
+*.model
+*.joblib
+*.pkl
+
+# Output files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp4
+*.avi
+*.pdf
+*.csv
+static/output/
+results/
 
 # IDE specific files
 .idea/
@@ -35,38 +93,105 @@ models/checkpoints/
 *.swp
 *.swo
 .DS_Store
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-workspace
+*.sublime-project
 
 # Environment variables
 .env
 .flaskenv
+.envrc
+envrc
 
 # Log files
 *.log
 logs/
+log/
 
 # Database files
 *.db
 *.sqlite
 *.sqlite3
+deepsteg.db
 
 # Jupyter Notebook
 .ipynb_checkpoints
+.jupyter/
+*.ipynb
 
 # Coverage reports
 htmlcov/
 .tox/
+.nox/
 .coverage
 .coverage.*
 .cache
 nosetests.xml
 coverage.xml
 *.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
 
 # Files marked for deletion during cleanup
 models/gan_model.py
 static/js/main.js
+*utils_pretrained.py
 
 # Temporary files
 *.tmp
 *.bak
 *~
+.*.sw[po]
+*.pid
+*.seed
+*.pid.lock
+
+# System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Documentation
+docs/_build/
+site/
+
+# TensorFlow/PyTorch specific
+.ipynb_checkpoints/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.torch/
+.tensorflow/
+.keras/
+
+# Personal/sensitive data
+credentials/
+*credentials*
+*password*
+*secrets*
+!example_credentials.json
+!example_secrets.py
+
+# Specific DeepSteg patterns
+deepsteg_*.json
+.deepsteg-cache/

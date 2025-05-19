@@ -14,7 +14,7 @@ import json
 import random
 from tqdm import tqdm
 import tensorflow as tf
-from models.utils import preprocess_image
+from models.utils_pretrained import preprocess_image
 
 # Konfigurasi logging
 logger = logging.getLogger(__name__)
