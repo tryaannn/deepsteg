@@ -4,6 +4,9 @@
  */
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize keyboard navigation styles first
+    initKeyboardNavigationStyles();
+    
     // Interactive Tutorial System
     initTutorialSystem();
     
@@ -27,6 +30,24 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Dashboard Stats
     initDashboardStats();
+    
+    // Scroll Animations
+    initScrollAnimations();
+    
+    // Enhanced Interactions
+    initEnhancedInteractions();
+    
+    // Performance Monitoring
+    initPerformanceMonitoring();
+    
+    // Accessibility Improvements
+    initAccessibilityImprovements();
+    
+    // Enhanced Error Handling
+    initEnhancedErrorHandling();
+    
+    // Loading States Management
+    initLoadingStates();
 });
 
 /**

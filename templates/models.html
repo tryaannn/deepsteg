@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manajemen Model - DeepSteg Enhanced</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
+                <i class="fas fa-shield-alt me-2"></i>
+                <span>DeepSteg</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="{{ url_for('index') }}">
+                            <i class="fas fa-home me-1"></i>Beranda
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/encode' %}active{% endif %}" href="{{ url_for('encode_page') }}">
+                            <i class="fas fa-lock me-1"></i>Encoding
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/decode' %}active{% endif %}" href="{{ url_for('decode_page') }}">
+                            <i class="fas fa-unlock-alt me-1"></i>Decoding
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/analyze' %}active{% endif %}" href="{{ url_for('analyze_page') }}">
+                            <i class="fas fa-search me-1"></i>Analisis
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/models' %}active{% endif %}" href="{{ url_for('models_page') }}">
+                            <i class="fas fa-brain me-1"></i>Model
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/about' %}active{% endif %}" href="{{ url_for('about_page') }}">
+                            <i class="fas fa-info-circle me-1"></i>Tentang
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <section class="page-header">
+        <div class="container">
+            <h1>Manajemen Model & Detector</h1>
+            <p>Kelola pre-trained model steganografi dan detector steganalysis untuk optimasi performa.</p>
+        </div>
+    </section>
+
+    <section class="models-section py-5">
+        <div class="container">
+            <!-- Model Statistics -->
+            <div class="row mb-4">
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="stat-card text-center p-3 border rounded">
+                        <div class="stat-icon mb-2">
+                            <i class="fas fa-brain fa-2x text-primary"></i>
+                        </div>
+                        <div class="stat-value" id="totalModels">0</div>
+                        <div class="stat-label">Total Model</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="stat-card text-center p-3 border rounded">
+                        <div class="stat-icon mb-2">
+                            <i class="fas fa-search fa-2x text-success"></i>
+                        </div>
+                        <div class="stat-value" id="totalDetectors">0</div>
+                        <div class="stat-label">Total Detector</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="stat-card text-center p-3 border rounded">
+                        <div class="stat-icon mb-2">
+                            <i class="fas fa-download fa-2x text-info"></i>
+                        </div>
+                        <div class="stat-value" id="downloadedModels">0</div>
+                        <div class="stat-label">Terunduh</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="stat-card text-center p-3 border rounded">
+                        <div class="stat-icon mb-2">
+                            <i class="fas fa-hdd fa-2x text-warning"></i>
+                        </div>
+                        <div class="stat-value" id="storageUsed">0 MB</div>
+                        <div class="stat-label">Storage</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Model Management Tabs -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <ul class="nav nav-tabs card-header-tabs" id="modelTab" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="steganography-models-tab" data-bs-toggle="tab" data-bs-target="#steganography-models" type="button" role="tab">
+                                        <i class="fas fa-brain me-2"></i>Steganography Models
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="detectors-tab" data-bs-toggle="tab" data-bs-target="#detectors" type="button" role="tab">
+                                        <i class="fas fa-search me-2"></i>Steganalysis Detectors
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="performance-tab" data-bs-toggle="tab" data-bs-target="#performance" type="button" role="tab">
+                                        <i class="fas fa-chart-line me-2"></i>Performance
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="card-body">
+                            <div class="tab-content" id="modelTabContent">
+                                <!-- Steganography Models Tab -->
+                                <div class="tab-pane fade show active" id="steganography-models" role="tabpanel">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h5 class="mb-0">Available Steganography Models</h5>
+                                        <div>
+                                            <button class="btn btn-outline-primary btn-sm" id="refreshModels">
+                                                <i class="fas fa-sync-alt me-1"></i>Refresh
+                                            </button>
+                                            <button class="btn btn-primary btn-sm" id="downloadAllModels">
+                                                <i class="fas fa-download me-1"></i>Download All
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="models-container">
+                                        <div class="row" id="modelsGrid">
+                                            <!-- Models will be loaded here -->
+                                            <div class="col-12 text-center py-5">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="visually-hidden">Loading models...</span>
+                                                </div>
+                                                <p class="mt-2">Loading available models...</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Detectors Tab -->
+                                <div class="tab-pane fade" id="detectors" role="tabpanel">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h5 class="mb-0">Available Steganalysis Detectors</h5>
+                                        <div>
+                                            <button class="btn btn-outline-success btn-sm" id="refreshDetectors">
+                                                <i class="fas fa-sync-alt me-1"></i>Refresh
+                                            </button>
+                                            <button class="btn btn-success btn-sm" id="downloadAllDetectors">
+                                                <i class="fas fa-download me-1"></i>Download All
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="detectors-container">
+                                        <div class="row" id="detectorsGrid">
+                                            <!-- Detectors will be loaded here -->
+                                            <div class="col-12 text-center py-5">
+                                                <div class="spinner-border text-success" role="status">
+                                                    <span class="visually-hidden">Loading detectors...</span>
+                                                </div>
+                                                <p class="mt-2">Loading available detectors...</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Performance Tab -->
+                                <div class="tab-pane fade" id="performance" role="tabpanel">
+                                    <div class="performance-dashboard">
+                                        <div class="row">
+                                            <div class="col-md-6 mb-4">
+                                                <div class="card">
+                                                    <div class="card-header">
+                                                        <h6 class="mb-0">Model Usage Statistics</h6>
+                                                    </div>
+                                                    <div class="card-body">
+                                                        <canvas id="modelUsageChart" width="400" height="200"></canvas>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6 mb-4">
+                                                <div class="card">
+                                                    <div class="card-header">
+                                                        <h6 class="mb-0">Performance Metrics</h6>
+                                                    </div>
+                                                    <div class="card-body">
+                                                        <canvas id="performanceChart" width="400" height="200"></canvas>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="row">
+                                            <div class="col-12">
+                                                <div class="card">
+                                                    <div class="card-header">
+                                                        <h6 class="mb-0">Model Comparison</h6>
+                                                    </div>
+                                                    <div class="card-body">
+                                                        <div class="table-responsive">
+                                                            <table class="table table-hover" id="modelComparisonTable">
+                                                                <thead>
+                                                                    <tr>
+                                                                        <th>Model</th>
+                                                                        <th>Type</th>
+                                                                        <th>Accuracy</th>
+                                                                        <th>Speed (ms)</th>
+                                                                        <th>Size (MB)</th>
+                                                                        <th>Usage Count</th>
+                                                                        <th>Status</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    <!-- Data will be loaded here -->
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Download Progress Modal -->
+    <div class="modal fade" id="downloadProgressModal" tabindex="-1" aria-labelledby="downloadProgressModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="downloadProgressModalLabel">
+                        <i class="fas fa-download me-2"></i>Downloading
+                    </h5>
+                </div>
+                <div class="modal-body">
+                    <div class="download-info mb-3">
+                        <strong id="downloadingItem">-</strong>
+                        <small class="text-muted d-block" id="downloadDescription">-</small>
+                    </div>
+                    
+                    <div class="progress mb-3" style="height: 20px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" id="downloadProgressBar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                            <span id="downloadProgressText">0%</span>
+                        </div>
+                    </div>
+                    
+                    <div class="download-stats">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <small class="text-muted">Downloaded</small>
+                                <div id="downloadedSize">0 MB</div>
+                            </div>
+                            <div class="col-4">
+                                <small class="text-muted">Total Size</small>
+                                <div id="totalSize">0 MB</div>
+                            </div>
+                            <div class="col-4">
+                                <small class="text-muted">Speed</small>
+                                <div id="downloadSpeed">0 KB/s</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelDownload">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Model Info Modal -->
+    <div class="modal fade" id="modelInfoModal" tabindex="-1" aria-labelledby="modelInfoModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modelInfoModalLabel">
+                        <i class="fas fa-info-circle me-2"></i>Model Information
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="model-details">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Basic Information</h6>
+                                <table class="table table-sm">
+                                    <tr><td><strong>Name:</strong></td><td id="modalModelName">-</td></tr>
+                                    <tr><td><strong>Type:</strong></td><td id="modalModelType">-</td></tr>
+                                    <tr><td><strong>Version:</strong></td><td id="modalModelVersion">-</td></tr>
+                                    <tr><td><strong>Size:</strong></td><td id="modalModelSize">-</td></tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Capabilities</h6>
+                                <table class="table table-sm">
+                                    <tr><td><strong>Message Length:</strong></td><td id="modalMessageLength">-</td></tr>
+                                    <tr><td><strong>Image Size:</strong></td><td id="modalImageSize">-</td></tr>
+                                    <tr><td><strong>Accuracy:</strong></td><td id="modalAccuracy">-</td></tr>
+                                    <tr><td><strong>Speed:</strong></td><td id="modalSpeed">-</td></tr>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <h6>Description</h6>
+                            <p id="modalModelDescription">-</p>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <h6>Usage Statistics</h6>
+                            <div class="row">
+                                <div class="col-md-4 text-center">
+                                    <div class="stat-item">
+                                        <div class="stat-number" id="modalUsageCount">0</div>
+                                        <div class="stat-label">Times Used</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 text-center">
+                                    <div class="stat-item">
+                                        <div class="stat-number" id="modalSuccessRate">0%</div>
+                                        <div class="stat-label">Success Rate</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 text-center">
+                                    <div class="stat-item">
+                                        <div class="stat-number" id="modalAvgTime">0ms</div>
+                                        <div class="stat-label">Avg Time</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-danger" id="deleteModel">
+                        <i class="fas fa-trash me-1"></i>Delete
+                    </button>
+                    <button type="button" class="btn btn-primary" id="testModel">
+                        <i class="fas fa-play me-1"></i>Test Model
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="py-4">
+        <div class="container">
+            <div class="row text-center">
+                <p>&copy; 2025 DeepSteg. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <div id="notification-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="{{ url_for('static', filename='js/enhanced-ui.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/enhanced-main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/models.js') }}"></script>
+</body>
+</html>

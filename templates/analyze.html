@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analisis Steganalysis - DeepSteg Enhanced</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
+                <i class="fas fa-shield-alt me-2"></i>
+                <span>DeepSteg</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="{{ url_for('index') }}">
+                            <i class="fas fa-home me-1"></i>Beranda
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/encode' %}active{% endif %}" href="{{ url_for('encode_page') }}">
+                            <i class="fas fa-lock me-1"></i>Encoding
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/decode' %}active{% endif %}" href="{{ url_for('decode_page') }}">
+                            <i class="fas fa-unlock-alt me-1"></i>Decoding
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/analyze' %}active{% endif %}" href="{{ url_for('analyze_page') }}">
+                            <i class="fas fa-search me-1"></i>Analisis
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/models' %}active{% endif %}" href="{{ url_for('models_page') }}">
+                            <i class="fas fa-brain me-1"></i>Model
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/about' %}active{% endif %}" href="{{ url_for('about_page') }}">
+                            <i class="fas fa-info-circle me-1"></i>Tentang
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <section class="page-header">
+        <div class="container">
+            <h1>Analisis Steganalysis</h1>
+            <p>Deteksi apakah gambar mengandung pesan tersembunyi menggunakan deep learning detector.</p>
+        </div>
+    </section>
+
+    <section class="analyze-section py-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h3 class="card-title">
+                                <i class="fas fa-search me-2"></i>Input Analisis
+                            </h3>
+                        </div>
+                        <div class="card-body">
+                            <form id="analyzeForm">
+                                <div class="mb-4">
+                                    <label for="analyzeImageUpload" class="form-label">Upload Gambar untuk Dianalisis</label>
+                                    <div class="image-upload-wrapper">
+                                        <div class="image-preview" id="analyzeImagePreview">
+                                            <div class="placeholder">
+                                                <i class="fas fa-image"></i>
+                                                <p>Preview Gambar</p>
+                                                <small class="text-muted">Klik untuk memilih gambar</small>
+                                            </div>
+                                            <img class="preview-img" src="" alt="Preview" style="display: none;">
+                                        </div>
+                                        <input type="file" class="form-control" id="analyzeImageUpload" accept="image/png, image/jpeg, image/jpg, image/bmp" required>
+                                    </div>
+                                    <small class="text-muted">Format yang didukung: JPG, PNG, BMP (Maks. 16MB)</small>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label for="detectorSelect" class="form-label">Pilih Detector</label>
+                                    <select class="form-select" id="detectorSelect">
+                                        <option value="cnn_basic">CNN Basic - Deteksi LSB Steganografi</option>
+                                        <option value="deep_detector">Deep Detector - Deteksi GAN Steganografi</option>
+                                        {% for detector_name, detector_info in detectors.items() %}
+                                        <option value="{{ detector_name }}">
+                                            {{ detector_info.name }} - {{ detector_info.description }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                    <small class="form-text text-muted">Pilih detector yang sesuai dengan jenis steganografi yang ingin dideteksi.</small>
+                                </div>
+                                
+                                <div class="analysis-options mb-4">
+                                    <h5>Opsi Analisis</h5>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="enableLSBAnalysis" checked>
+                                        <label class="form-check-label" for="enableLSBAnalysis">
+                                            Analisis LSB (Least Significant Bit)
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="enableHistogramAnalysis" checked>
+                                        <label class="form-check-label" for="enableHistogramAnalysis">
+                                            Analisis Histogram
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="enableFrequencyAnalysis">
+                                        <label class="form-check-label" for="enableFrequencyAnalysis">
+                                            Analisis Domain Frekuensi
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary w-100" id="analyzeBtn">
+                                    <i class="fas fa-search me-2"></i>Analisis Gambar
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <div class="card info-card">
+                        <div class="card-body">
+                            <h5><i class="fas fa-info-circle me-2"></i>Tentang Steganalysis</h5>
+                            <p>Steganalysis adalah ilmu untuk mendeteksi keberadaan steganografi dalam media digital. Teknik ini menggunakan berbagai metode statistik dan machine learning untuk mengidentifikasi pola yang tidak normal dalam gambar.</p>
+                            <div class="alert alert-info mt-3 mb-0 py-2 px-3">
+                                <small><i class="fas fa-lightbulb me-1"></i> Akurasi deteksi tergantung pada kualitas detector dan jenis steganografi yang digunakan.</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h3 class="card-title">
+                                <i class="fas fa-chart-line me-2"></i>Hasil Analisis
+                            </h3>
+                        </div>
+                        <div class="card-body">
+                            <div id="analysisResultContainer" style="display: none;">
+                                <!-- Detection Result Summary -->
+                                <div class="detection-summary mb-4">
+                                    <div class="row text-center">
+                                        <div class="col-6">
+                                            <div class="detection-status p-3 rounded" id="detectionStatus">
+                                                <div class="status-icon mb-2" id="statusIcon">
+                                                    <i class="fas fa-question-circle"></i>
+                                                </div>
+                                                <h4 id="detectionResult">-</h4>
+                                                <p class="mb-0" id="detectionText">Menunggu analisis...</p>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="confidence-meter p-3">
+                                                <h5>Tingkat Keyakinan</h5>
+                                                <div class="confidence-circle mb-2">
+                                                    <canvas id="confidenceChart" width="80" height="80"></canvas>
+                                                    <div class="confidence-value" id="confidenceValue">0%</div>
+                                                </div>
+                                                <small class="text-muted" id="confidenceDescription">Tidak ada data</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Detailed Analysis Results -->
+                                <div class="analysis-details">
+                                    <ul class="nav nav-tabs" id="analysisTab" role="tablist">
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link active" id="detection-tab" data-bs-toggle="tab" data-bs-target="#detection" type="button" role="tab">
+                                                <i class="fas fa-search me-1"></i>Deteksi
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link" id="statistics-tab" data-bs-toggle="tab" data-bs-target="#statistics" type="button" role="tab">
+                                                <i class="fas fa-chart-bar me-1"></i>Statistik
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link" id="visualization-tab" data-bs-toggle="tab" data-bs-target="#visualization" type="button" role="tab">
+                                                <i class="fas fa-eye me-1"></i>Visualisasi
+                                            </button>
+                                        </li>
+                                    </ul>
+                                    <div class="tab-content mt-3" id="analysisTabContent">
+                                        <!-- Detection Tab -->
+                                        <div class="tab-pane fade show active" id="detection" role="tabpanel">
+                                            <div class="detection-metrics">
+                                                <div class="row">
+                                                    <div class="col-md-6 mb-3">
+                                                        <div class="metric-card p-3 border rounded">
+                                                            <h6 class="metric-title">Detection Score</h6>
+                                                            <div class="metric-value" id="detectionScore">-</div>
+                                                            <div class="progress mt-2">
+                                                                <div class="progress-bar" id="detectionScoreBar" role="progressbar" style="width: 0%"></div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6 mb-3">
+                                                        <div class="metric-card p-3 border rounded">
+                                                            <h6 class="metric-title">Estimated Payload</h6>
+                                                            <div class="metric-value" id="estimatedPayload">-</div>
+                                                            <small class="text-muted">Perkiraan ukuran pesan tersembunyi</small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="detector-info mt-3 p-3 bg-light rounded">
+                                                    <h6><i class="fas fa-robot me-2"></i>Informasi Detector</h6>
+                                                    <div class="row">
+                                                        <div class="col-md-6">
+                                                            <strong>Detector:</strong> <span id="usedDetector">-</span>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <strong>Waktu Eksekusi:</strong> <span id="executionTime">-</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Statistics Tab -->
+                                        <div class="tab-pane fade" id="statistics" role="tabpanel">
+                                            <div class="statistics-content">
+                                                <div class="row">
+                                                    <div class="col-md-12 mb-3">
+                                                        <h6>Statistik Histogram</h6>
+                                                        <canvas id="histogramChart" width="400" height="200"></canvas>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="statistical-tests mt-4">
+                                                    <h6>Uji Statistik</h6>
+                                                    <div class="table-responsive">
+                                                        <table class="table table-sm">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>Test</th>
+                                                                    <th>Value</th>
+                                                                    <th>P-Value</th>
+                                                                    <th>Result</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody id="statisticalTestsTable">
+                                                                <tr>
+                                                                    <td>Chi-Square Test</td>
+                                                                    <td id="chiSquareValue">-</td>
+                                                                    <td id="chiSquarePValue">-</td>
+                                                                    <td id="chiSquareResult">-</td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <td>LSB Pair Analysis</td>
+                                                                    <td id="lsbPairValue">-</td>
+                                                                    <td id="lsbPairPValue">-</td>
+                                                                    <td id="lsbPairResult">-</td>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Visualization Tab -->
+                                        <div class="tab-pane fade" id="visualization" role="tabpanel">
+                                            <div class="visualization-content">
+                                                <div class="row">
+                                                    <div class="col-md-6 mb-3">
+                                                        <h6 class="text-center">LSB Plane Visualization</h6>
+                                                        <div class="lsb-visualization text-center">
+                                                            <img id="lsbVisualization" src="" alt="LSB Visualization" class="img-fluid border rounded" style="max-height: 200px;">
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6 mb-3">
+                                                        <h6 class="text-center">Noise Pattern</h6>
+                                                        <canvas id="noisePatternChart" width="250" height="200"></canvas>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="analysis-summary mt-3 p-3 bg-light rounded">
+                                                    <h6><i class="fas fa-clipboard-list me-2"></i>Ringkasan Analisis</h6>
+                                                    <div id="analysisSummary">
+                                                        <p>Menunggu hasil analisis...</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div id="analyzeLoadingContainer" style="display: none;">
+                                <div class="text-center py-5">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <p class="mt-3">Menganalisis gambar...</p>
+                                    <small class="text-muted">Mohon tunggu, proses analisis sedang berlangsung.</small>
+                                    <div class="progress mt-3">
+                                        <div class="progress-bar progress-bar-striped progress-bar-animated" id="analysisProgress" role="progressbar" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div id="analyzePlaceholderContainer" class="text-center py-5">
+                                <div class="placeholder-icon mb-3">
+                                    <i class="fas fa-search"></i>
+                                </div>
+                                <h4>Hasil Analisis</h4>
+                                <p>Upload gambar dan pilih detector untuk memulai analisis steganalysis.</p>
+                                <div class="analysis-stats mt-4">
+                                    <div class="row text-center">
+                                        <div class="col-4">
+                                            <div class="stat-item">
+                                                <div class="stat-number">95%</div>
+                                                <div class="stat-label">Akurasi</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="stat-item">
+                                                <div class="stat-number">3</div>
+                                                <div class="stat-label">Detector</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="stat-item">
+                                                <div class="stat-number">Fast</div>
+                                                <div class="stat-label">Kecepatan</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Dashboard Stats Section -->
+    <section class="stats-section py-4 bg-light">
+        <div class="container">
+            <div id="dashboardStats">
+                <!-- Stats will be loaded here -->
+            </div>
+        </div>
+    </section>
+
+    <footer class="py-4">
+        <div class="container">
+            <div class="row text-center">
+                <p>&copy; 2025 DeepSteg. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <div id="notification-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/enhanced-ui.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/enhanced-main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/analyze.js') }}"></script>
+</body>
+</html>

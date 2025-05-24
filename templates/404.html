@@ -24,16 +24,34 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('index') }}">Beranda</a>
+                        <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="{{ url_for('index') }}">
+                            <i class="fas fa-home me-1"></i>Beranda
+                        </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('encode_page') }}">Encoding</a>
+                        <a class="nav-link {% if request.path == '/encode' %}active{% endif %}" href="{{ url_for('encode_page') }}">
+                            <i class="fas fa-lock me-1"></i>Encoding
+                        </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('decode_page') }}">Decoding</a>
+                        <a class="nav-link {% if request.path == '/decode' %}active{% endif %}" href="{{ url_for('decode_page') }}">
+                            <i class="fas fa-unlock-alt me-1"></i>Decoding
+                        </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('about_page') }}">Tentang</a>
+                        <a class="nav-link {% if request.path == '/analyze' %}active{% endif %}" href="{{ url_for('analyze_page') }}">
+                            <i class="fas fa-search me-1"></i>Analisis
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/models' %}active{% endif %}" href="{{ url_for('models_page') }}">
+                            <i class="fas fa-brain me-1"></i>Model
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/about' %}active{% endif %}" href="{{ url_for('about_page') }}">
+                            <i class="fas fa-info-circle me-1"></i>Tentang
+                        </a>
                     </li>
                 </ul>
             </div>
